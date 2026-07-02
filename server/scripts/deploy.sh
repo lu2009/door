@@ -35,21 +35,40 @@ docker compose pull
 backend_replicas="${BACKEND_REPLICAS:-1}"
 
 # Start with a single backend so migrations/seeding happen once before scaling out.
-docker compose up -d --build --scale backend=1
+docker compose up -d --build --remove-orphans --scale backend=1
 
-# Wait for the first backend to finish migrations/seeding before scaling out.
-for i in $(seq 1 20); do
-  if curl -sf http://localhost/healthz > /dev/null 2>&1; then
+# Wait for the first backend container to become healthy before scaling or refreshing nginx.
+primary_backend_id="$(docker compose ps -q backend | head -n 1)"
+if [ -z "$primary_backend_id" ]; then
+  echo "Primary backend container was not created"
+  exit 1
+fi
+
+backend_healthy=0
+for i in $(seq 1 40); do
+  backend_status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$primary_backend_id" 2>/dev/null || true)"
+  if [ "$backend_status" = "healthy" ]; then
+    backend_healthy=1
     break
   fi
-  echo "Waiting for primary backend... ($i/20)"
+  echo "Waiting for primary backend... ($i/40) status=${backend_status:-unknown}"
   sleep 3
 done
 
+if [ "$backend_healthy" -ne 1 ]; then
+  echo "Primary backend failed to become healthy"
+  docker compose ps
+  docker compose logs --tail=120 backend
+  exit 1
+fi
+
 if [ "$backend_replicas" -gt 1 ]; then
   echo "Scaling backend to ${backend_replicas} replicas..."
-  docker compose up -d --scale backend="$backend_replicas"
+  docker compose up -d --remove-orphans --scale backend="$backend_replicas"
 fi
+
+echo "Refreshing nginx upstream connections..."
+docker compose restart nginx
 
 # Verify deployment
 echo "Verifying deployment..."

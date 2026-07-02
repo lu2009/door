@@ -10,7 +10,7 @@
 | 数据库 | PostgreSQL 16 |
 | ORM | Prisma |
 | 缓存 | Redis 7 |
-| 对象存储 | MinIO |
+| 图片存储 | PostgreSQL `imageBlob` |
 | 前端 | Vue 3 SPA (静态部署) |
 | 反向代理 | Nginx |
 | 部署 | Docker Compose |
@@ -30,13 +30,12 @@ door/
     │   │   ├── finance/    # 财务管理 (收付款/余额/流水)
     │   │   ├── formula/    # 材料公式
     │   │   ├── settings/   # 系统设置
-    │   │   ├── file/       # 文件管理 (MinIO)
+    │   │   ├── file/       # 文件管理 (数据库图片存储)
     │   │   ├── scanner/    # 扫码枪
     │   │   └── shortlink/  # 短链接
     │   ├── middleware/      # 认证/错误/响应中间件
     │   ├── database/       # Prisma 客户端
     │   ├── redis/          # Redis 客户端
-    │   ├── minio/          # MinIO 客户端
     │   └── utils/          # 工具函数 (JWT/加密/序列化)
     ├── prisma/             # Schema + 迁移文件
     ├── docker/             # Dockerfile + Nginx 配置
@@ -75,7 +74,6 @@ docker compose up -d
 服务启动后：
 - 前端页面：`http://服务器IP`
 - 健康检查：`http://服务器IP/healthz`
-- MinIO 控制台：`http://服务器IP:9001`
 
 ### 4. 一键部署脚本
 
@@ -89,8 +87,7 @@ bash scripts/deploy.sh
 浏览器 ──→ Nginx (:80/443) ──→ 前端静态文件
                     │
                     └──→ Backend (:5000) ──→ PostgreSQL (:5432)
-                                     ├──→ Redis (:6379)
-                                     └──→ MinIO (:9000)
+                                     └──→ Redis (:6379)
 ```
 
 ## 默认账户

@@ -13,15 +13,6 @@ export const config = {
   // Redis
   redisUrl: process.env.REDIS_URL || 'redis://redis:6379/0',
 
-  // MinIO
-  minio: {
-    endpoint: process.env.MINIO_ENDPOINT || 'minio:9000',
-    accessKey: process.env.MINIO_ACCESS_KEY || 'smartdoor',
-    secretKey: process.env.MINIO_SECRET_KEY || 'smartdoor123',
-    bucket: process.env.MINIO_BUCKET || 'smartdoor',
-    secure: process.env.MINIO_SECURE === 'true',
-  },
-
   // JWT
   jwt: {
     secret: process.env.JWT_SECRET || 'change-this-in-production',

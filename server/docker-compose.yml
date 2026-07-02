@@ -3,10 +3,6 @@ x-common-env: &common-env
   NODE_ENV: ${NODE_ENV:-production}
   DATABASE_URL: postgresql://smartdoor:smartdoor123@postgres:5432/smartdoor
   REDIS_URL: redis://redis:6379/0
-  MINIO_ENDPOINT: minio:9000
-  MINIO_ACCESS_KEY: smartdoor
-  MINIO_SECRET_KEY: smartdoor123
-  MINIO_BUCKET: smartdoor
   JWT_SECRET: ${JWT_SECRET:-change-in-production}
   CORS_ORIGINS: ${CORS_ORIGINS:-*}
 
@@ -48,26 +44,6 @@ services:
     networks:
       - smartdoor-network
 
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: smartdoor
-      MINIO_ROOT_PASSWORD: smartdoor123
-    ports:
-      - "19000:9000"
-      - "19001:9001"
-    volumes:
-      - minio-data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-    networks:
-      - smartdoor-network
-
   backend:
     build:
       context: .
@@ -85,8 +61,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      minio:
-        condition: service_started
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/healthz',r=>{process.exit(r.statusCode===200?0:1)})"]
       interval: 30s
@@ -120,7 +94,6 @@ services:
 volumes:
   postgres-data:
   redis-data:
-  minio-data:
   upload-data:
 
 networks:

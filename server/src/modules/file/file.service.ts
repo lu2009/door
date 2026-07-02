@@ -1,5 +1,4 @@
 import { prisma } from '../../database';
-import { minio } from '../../minio';
 import { v4 as uuidv4 } from 'uuid';
 import { safeLoads } from '../../utils/helpers';
 import QRCode from 'qrcode';
@@ -13,16 +12,14 @@ export async function saveImage(
 ) {
   const imageId = (body.id as string) || uuidv4();
   const series = (body.series as string) || '';
-  const objectName = `${ds}/${imageId}${getExtension(file.originalname)}`;
-
-  // Upload to MinIO
-  await minio.upload(objectName, file.buffer, file.mimetype);
+  const blobKey = `${ds}/${imageId}${getExtension(file.originalname)}`;
+  const imageBytes = new Uint8Array(file.buffer);
 
   // Upsert DB record
   await prisma.image.upsert({
     where: { id_databaseName: { id: imageId, databaseName: ds } },
-    update: { imageUrl: objectName, series },
-    create: { id: imageId, databaseName: ds, imageUrl: objectName, series },
+    update: { imageBlob: imageBytes, imageUrl: blobKey, series },
+    create: { id: imageId, databaseName: ds, imageBlob: imageBytes, imageUrl: blobKey, series },
   });
 
   // Sync image_id to order door_specs (match Flask sync_detail_image_id)
@@ -31,11 +28,11 @@ export async function saveImage(
     await syncDetailImageId(effectiveOrderDs, series, imageId);
   }
 
-  return { id: imageId, url: objectName };
+  return { id: imageId, url: blobKey };
 }
 
 /**
- * Batch fetch images — single DB + MinIO round-trip for all IDs.
+ * Batch fetch images from PostgreSQL for all IDs.
  * Returns a map keyed by image id so the frontend can preload before PDF export.
  */
 export async function getBatchImages(
@@ -69,22 +66,8 @@ export async function getBatchImages(
         return { id, value: null };
       }
 
-      let buffer: Buffer | null = null;
-      let contentType = 'image/png';
-
-      // MinIO first
-      if (record.imageUrl) {
-        const buf = await minio.download(record.imageUrl);
-        if (buf) {
-          buffer = buf;
-          contentType = detectMimeType(record.imageUrl);
-        }
-      }
-
-      // Fallback: blob from DB
-      if (!buffer && record.imageBlob) {
-        buffer = Buffer.from(record.imageBlob);
-      }
+      const buffer = record.imageBlob ? Buffer.from(record.imageBlob) : null;
+      const contentType = detectMimeType(record.imageUrl || '');
 
       if (!buffer) return { id, value: null };
 
@@ -111,17 +94,11 @@ export async function getImage(imageId: string, ds: string) {
     return null;
   }
 
-  // If stored in MinIO (imageUrl is set), download from MinIO
-  if (record.imageUrl) {
-    const buffer = await minio.download(record.imageUrl);
-    if (buffer) {
-      return { buffer, contentType: detectMimeType(record.imageUrl) };
-    }
-  }
-
-  // Fallback: return blob from DB
   if (record.imageBlob) {
-    return { buffer: Buffer.from(record.imageBlob), contentType: 'image/png' };
+    return {
+      buffer: Buffer.from(record.imageBlob),
+      contentType: detectMimeType(record.imageUrl || ''),
+    };
   }
 
   return null;
@@ -144,15 +121,6 @@ export async function deleteImage(
   relatedId?: string,
   orderDs?: string
 ) {
-  // Delete from MinIO if stored there
-  const record = ds
-    ? await prisma.image.findUnique({ where: { id_databaseName: { id: imageId, databaseName: ds } } })
-    : await prisma.image.findFirst({ where: { id: imageId } });
-
-  if (record?.imageUrl) {
-    await minio.delete(record.imageUrl);
-  }
-
   // Delete DB record (requires ds for compound primary key)
   if (ds) {
     await prisma.image.deleteMany({
