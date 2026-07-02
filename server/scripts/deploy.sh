@@ -32,7 +32,7 @@ chmod -R a+rX ../frontend
 # Pull latest images
 docker compose pull
 
-backend_replicas="${BACKEND_REPLICAS:-2}"
+backend_replicas="${BACKEND_REPLICAS:-1}"
 
 # Start with a single backend so migrations/seeding happen once before scaling out.
 docker compose up -d --build --scale backend=1
