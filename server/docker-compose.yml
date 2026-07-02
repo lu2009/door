@@ -92,8 +92,6 @@ services:
       - .env
     volumes:
       - upload-data:/data/uploads
-      - ./src:/app/src
-      - ./prisma:/app/prisma
     depends_on:
       postgres:
         condition: service_healthy
