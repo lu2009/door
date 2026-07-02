@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+*.log
+uploads/
+templates/
+updates/
+frontend/
+backups/
+.DS_Store
+*.sql.gz

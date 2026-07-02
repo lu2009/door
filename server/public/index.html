@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Door API - 测试控制台</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    h1 { font-size: 24px; margin-bottom: 20px; color: #1a1a1a; }
+    .status-bar { background: #e8f5e9; border: 1px solid #c8e6c9; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+    .status-bar.error { background: #ffebee; border-color: #ffcdd2; }
+    .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+    .status-dot.ok { background: #4caf50; }
+    .status-dot.fail { background: #f44336; }
+    .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .card h3 { margin-bottom: 12px; font-size: 16px; }
+    .row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+    input, select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; flex: 1; min-width: 120px; }
+    button { padding: 8px 20px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    button:hover { background: #1565c0; }
+    button.danger { background: #d32f2f; }
+    button.success { background: #388e3c; }
+    pre { background: #263238; color: #e0e0e0; padding: 15px; border-radius: 4px; font-size: 13px; overflow-x: auto; max-height: 400px; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+    .tab { padding: 8px 16px; background: #e0e0e0; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    .tab.active { background: #1976d2; color: white; }
+    .tab:hover:not(.active) { background: #bdbdbd; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚪 Smart Door API 测试控制台</h1>
+
+    <div class="status-bar" id="statusBar">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText">检查后端连接...</span>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <div class="tab active" data-tab="auth">🔐 认证</div>
+      <div class="tab" data-tab="client">👤 客户</div>
+      <div class="tab" data-tab="order">📋 订单</div>
+      <div class="tab" data-tab="finance">💰 财务</div>
+      <div class="tab" data-tab="settings">⚙️ 设置</div>
+      <div class="tab" data-tab="legacy">🔄 传统接口</div>
+    </div>
+
+    <!-- Auth Card -->
+    <div class="card tab-content" id="tab-auth">
+      <h3>🔐 用户登录</h3>
+      <div class="row">
+        <input id="loginUser" placeholder="用户名" value="开门红">
+        <input id="loginPass" type="password" placeholder="密码" value="555666">
+        <button onclick="login()">登录</button>
+      </div>
+      <div id="loginResult"></div>
+
+      <h3 style="margin-top:16px">👤 用户配置</h3>
+      <div class="row">
+        <button onclick="getConfig()">获取配置</button>
+      </div>
+      <div id="configResult"></div>
+    </div>
+
+    <!-- Client Card -->
+    <div class="card tab-content" id="tab-client" style="display:none">
+      <h3>👤 客户管理</h3>
+      <div class="row">
+        <input id="clientName" placeholder="客户名称" value="测试客户">
+        <input id="clientPhone" placeholder="电话" value="13800138000">
+        <button onclick="createClient()">创建/更新客户</button>
+      </div>
+      <div class="row">
+        <button onclick="listClients()" class="success">客户列表</button>
+        <button onclick="checkClient()">检查客户</button>
+      </div>
+      <div id="clientResult"></div>
+    </div>
+
+    <!-- Order Card -->
+    <div class="card tab-content" id="tab-order" style="display:none">
+      <h3>📋 订单管理</h3>
+      <div class="row">
+        <button onclick="listOrders()" class="success">订单列表</button>
+        <button onclick="listOrdersMore()">分页订单</button>
+      </div>
+      <div class="row">
+        <input id="orderNo" placeholder="回执单号">
+        <button onclick="getOrderDetail()">订单详情</button>
+      </div>
+      <div id="orderResult"></div>
+    </div>
+
+    <!-- Finance Card -->
+    <div class="card tab-content" id="tab-finance" style="display:none">
+      <h3>💰 财务管理</h3>
+      <div class="row">
+        <button onclick="financeSummary()" class="success">财务汇总</button>
+        <button onclick="financeCheckSystem()">检测系统</button>
+      </div>
+      <div id="financeResult"></div>
+    </div>
+
+    <!-- Settings Card -->
+    <div class="card tab-content" id="tab-settings" style="display:none">
+      <h3>⚙️ 系统设置</h3>
+      <div class="row">
+        <button onclick="getVersion()" class="success">版本信息</button>
+        <button onclick="getAddPrices()">加价项目</button>
+      </div>
+      <div class="row">
+        <input id="declarationText" placeholder="声明内容" value="测试声明">
+        <button onclick="setDeclaration()">更新声明</button>
+      </div>
+      <div id="settingsResult"></div>
+    </div>
+
+    <!-- Legacy Card -->
+    <div class="card tab-content" id="tab-legacy" style="display:none">
+      <h3>🔄 传统接口 (兼容)</h3>
+      <div class="row">
+        <button onclick="legacyGetOrders()">getorders</button>
+        <button onclick="legacyGetProgress()">getprogress</button>
+        <button onclick="legacyGetUserConfig()">getuserconfig</button>
+      </div>
+      <div id="legacyResult"></div>
+    </div>
+  </div>
+
+  <script>
+    const BASE = '';
+    let TOKEN = '';
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+        document.getElementById('tab-' + tab.dataset.tab).style.display = 'block';
+      });
+    });
+
+    // Health check on load
+    async function checkHealth() {
+      const bar = document.getElementById('statusBar');
+      const dot = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      try {
+        const r = await fetch(BASE + '/healthz');
+        const d = await r.json();
+        dot.className = 'status-dot ok';
+        text.textContent = '✅ 后端运行正常 — ' + JSON.stringify(d);
+        bar.className = 'status-bar';
+      } catch (e) {
+        dot.className = 'status-dot fail';
+        text.textContent = '❌ 后端连接失败: ' + e.message;
+        bar.className = 'status-bar error';
+      }
+    }
+
+    async function api(path, options = {}) {
+      const headers = { 'Content-Type': 'application/json', ...options.headers };
+      if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
+      const r = await fetch(BASE + path, { ...options, headers });
+      return r.json();
+    }
+
+    // --- Auth ---
+    async function login() {
+      const user = document.getElementById('loginUser').value;
+      const pass = document.getElementById('loginPass').value;
+      const d = await api('/api/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username: user, password: pass }),
+        headers: {}  // no auth for login
+      });
+      if (d[0]?.userinfo?.token) TOKEN = d[0].userinfo.token;
+      document.getElementById('loginResult').innerHTML = '<pre>' + JSON.stringify(d, null, 2) + '</pre>';
+    }
+
+    async function getConfig() {
+      const d = await api('/api/v1/auth/config');
+      document.getElementById('configResult').innerHTML = '<pre>' + JSON.stringify(d, null, 2) + '</pre>';
+    }
+
+    // --- Client ---
+    async function createClient() {
+      const name = document.getElementById('clientName').value;
+      const phone = document.getElementById('clientPhone').value;
+      const d = await api('/api/v1/clients/', {
+        method: 'PUT',
+        body: JSON.stringify({ ds: 'smartdoor', '客户': name, '电话': phone })
+      });
+      document.getElementById('clientResult').innerHTML = '<pre>' + JSON.stringify(d, null, 2) + '</pre>';
+    }
+
+    async function listClients() {
+      const d = await api('/api/v1/clients/?ds=smartdoor');
+      document.getElementById('clientResult').innerHTML = '<pre>' + JSON.stringify(d, null, 2) + '</pre>';
+    }
+
+    async function checkClient() {
+      const name = document.getElementById('clientName').value;
+      const phone = document.getElementById('clientPhone').value;
+      const d = await api('/api/v1/clients/check', {
+        method: 'POST',
+        body: JSON.stringify({ ds: 'smartdoor', name, phone })
+      });
+      document.getElementById('clientResult').innerHTML = '<pre>' + JSON.stringify(d, null, 2) + '</pre>';
+    }
+
+    // --- Order ---
+    async function listOrders() {
+      const d = await api('/api/v1/orders/?ds=smartdoor');
+      document.getElementById('orderResult').innerHTML = '<pre>' + JSON.stringify(d, null, 2) + '</pre>';
+    }
+
+    async function listOrdersMore() {
+      const d = await api('/api/v1/orders/more?ds=smartdoor&page=1&perPage=10');
+      document.getElementById('orderResult').innerHTML = '<pre>' + JSON.stringify(d, null, 2) + '</pre>';
+    }
+
+    async function getOrderDetail() {
+      const no = document.getElementById('orderNo').value;
+      const d = await api('/api/v1/orders/detail?ds=smartdoor&orderNo=' + no);
+      document.getElementById('orderResult').innerHTML = '<pre>' + JSON.stringify(d, null, 2) + '</pre>';
+    }
+
+    // --- Finance ---
+    async function financeSummary() {
+      const d = await api('/api/v1/finance/summary');
+      document.getElementById('financeResult').innerHTML = '<pre>' + JSON.stringify(d, null, 2) + '</pre>';
+    }
+
+    async function financeCheckSystem() {
+      const d = await api('/api/v1/finance/check-system');
+      document.getElementById('financeResult').innerHTML = '<pre>' + JSON.stringify(d, null, 2) + '</pre>';
+    }
+
+    // --- Settings ---
+    async function getVersion() {
+      const d = await api('/api/v1/settings/version');
+      document.getElementById('settingsResult').innerHTML = '<pre>' + JSON.stringify(d, null, 2) + '</pre>';
+    }
+
+    async function getAddPrices() {
+      const d = await api('/api/v1/settings/add-prices?ds=smartdoor');
+      document.getElementById('settingsResult').innerHTML = '<pre>' + JSON.stringify(d, null, 2) + '</pre>';
+    }
+
+    async function setDeclaration() {
+      const text = document.getElementById('declarationText').value;
+      const d = await api('/api/v1/settings/declaration', {
+        method: 'POST',
+        body: JSON.stringify({ ds: 'smartdoor', declaration: text })
+      });
+      document.getElementById('settingsResult').innerHTML = '<pre>' + JSON.stringify(d, null, 2) + '</pre>';
+    }
+
+    // --- Legacy ---
+    async function legacyGetOrders() {
+      const d = await api('/1?param1=getorders&param2=smartdoor', { method: 'POST', body: '{}' });
+      document.getElementById('legacyResult').innerHTML = '<pre>' + JSON.stringify(d, null, 2) + '</pre>';
+    }
+
+    async function legacyGetProgress() {
+      const d = await api('/1?param1=getprogress&param2=smartdoor');
+      document.getElementById('legacyResult').innerHTML = '<pre>' + JSON.stringify(d, null, 2) + '</pre>';
+    }
+
+    async function legacyGetUserConfig() {
+      const d = await api('/1?param1=getUserConfig&param2=smartdoor');
+      document.getElementById('legacyResult').innerHTML = '<pre>' + JSON.stringify(d, null, 2) + '</pre>';
+    }
+
+    // Init
+    checkHealth();
+  </script>
+</body>
+</html>

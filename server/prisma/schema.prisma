@@ -1,0 +1,378 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========== Base fields mixin via generator-compatible approach ==========
+// Each model has: id (auto-increment), createdAt, updatedAt
+
+model User {
+  id                     Int       @id @default(autoincrement())
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+  username               String    @unique @db.VarChar(50)
+  passwordHash           String    @map("password_hash") @db.VarChar(255)
+  displayName            String    @default("昊艺门窗") @map("display_name") @db.VarChar(100)
+  companyName            String    @default("昊艺门窗") @map("company_name") @db.VarChar(100)
+  databaseName           String    @default("smartdoor") @map("database_name") @db.VarChar(50)
+  isDefaultPw            Int       @default(1) @map("is_default_pw")
+  syncEnabled            Int       @default(0) @map("sync_enabled")
+  status                 Int       @default(1)
+  loginDate              DateTime? @map("login_date") @db.Date
+  attemptsLeft           Int       @default(80) @map("attempts_left")
+  isTrial                Boolean   @default(false) @map("is_trial")
+  trialLimit             Int       @default(80) @map("trial_limit")
+  customDirectionNames   String?   @map("custom_direction_names") @db.Text
+  proceduresData         String?   @map("procedures_data") @db.Text
+  columnSettings         String?   @map("column_settings") @db.Text
+  mutilUser              Int       @default(0) @map("mutil_user")
+
+  @@map("users")
+}
+
+model Client {
+  id                   Int       @id @default(autoincrement())
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  databaseName         String    @default("smartdoor") @map("database_name") @db.VarChar(50)
+  clientCode           String    @map("client_code") @db.VarChar(50)
+  name                 String    @db.VarChar(200)
+  brand                String?   @db.VarChar(200)
+  address              String?   @db.Text
+  phone                String?   @db.VarChar(50)
+  contactPerson        String?   @map("contact_person") @db.VarChar(100)
+  logisticsProvider    String?   @map("logistics_provider") @db.VarChar(200)
+  logisticsPhone       String?   @map("logistics_phone") @db.VarChar(50)
+  deliveryPhone        String?   @map("delivery_phone") @db.VarChar(50)
+  householdRegistration String?  @map("household_registration") @db.VarChar(200)
+
+  orders             Order[]
+  balances           CustomerBalance[]
+  fundFlows          CustomerFundFlow[]
+
+  @@unique([databaseName, clientCode])
+  @@index([name])
+  @@index([brand])
+  @@index([contactPerson])
+  @@map("clients")
+}
+
+model Order {
+  id                  Int              @id @default(autoincrement())
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+  databaseName        String           @default("smartdoor") @map("database_name") @db.VarChar(50)
+  clientId            Int?             @map("client_id")
+  orderNo             String           @map("order_no") @db.VarChar(100)
+  customerName        String?          @map("customer_name") @db.VarChar(200)
+  brand               String?          @db.VarChar(200)
+  orderDate           DateTime?        @map("order_date") @db.Date
+  deliveryDate        DateTime?        @map("delivery_date") @db.Date
+  status              String?          @default("pending") @db.VarChar(50)
+  totalAmount         Decimal?         @default(0) @map("total_amount") @db.Decimal(12, 2)
+  paidAmount          Decimal?         @default(0) @map("paid_amount") @db.Decimal(12, 2)
+  unpaidAmount        Decimal?         @default(0) @map("unpaid_amount") @db.Decimal(12, 2)
+  doorType            String?          @map("door_type") @db.VarChar(50)
+  doorCount           Int?             @default(1) @map("door_count")
+  doorSpecs           String?          @map("door_specs") @db.Text
+  operatorName        String?          @default("") @map("operator_name") @db.VarChar(100)
+  salesperson         String?          @default("") @db.VarChar(100)
+  formulaData         String?          @map("formula_data") @db.Text
+  notes               String?          @db.Text
+
+  client              Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  progressRecords     Progress[]
+  financeOrders       FinanceOrder[]
+  payments            Payment[]
+
+  @@unique([databaseName, orderNo])
+  @@index([customerName])
+  @@index([status])
+  @@map("orders")
+}
+
+model Procedure {
+  id             Int      @id @default(autoincrement())
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  databaseName   String   @default("smartdoor") @map("database_name") @db.VarChar(50)
+  name           String   @db.VarChar(100)
+  orderIndex     Int?     @default(0) @map("order_index")
+  description    String?  @db.Text
+
+  @@unique([databaseName, name])
+  @@map("procedures")
+}
+
+model Progress {
+  id              Int       @id @default(autoincrement())
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  databaseName    String    @default("smartdoor") @map("database_name") @db.VarChar(50)
+  orderId         Int       @map("order_id")
+  orderNo         String?   @map("order_no") @db.VarChar(100)
+  customerName    String?   @map("customer_name") @db.VarChar(200)
+  procedureName   String    @map("procedure_name") @db.VarChar(100)
+  procedureStatus String?   @default("pending") @map("procedure_status") @db.VarChar(50)
+  completedAt     DateTime? @map("completed_at")
+  operatorName    String?   @map("operator_name") @db.VarChar(100)
+  notes           String?   @db.Text
+
+  order           Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([databaseName, orderId, procedureName])
+  @@index([orderNo])
+  @@index([procedureName])
+  @@map("progress_records")
+}
+
+model FinanceOrder {
+  id                Int       @id @default(autoincrement())
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  databaseName      String    @default("smartdoor") @map("database_name") @db.VarChar(50)
+  orderId           Int?      @map("order_id")
+  orderNo           String?   @map("order_no") @db.VarChar(100)
+  customerName      String?   @map("customer_name") @db.VarChar(200)
+  allocatedAmount   Decimal?  @default(0) @map("allocated_amount") @db.Decimal(12, 2)
+  unpaidAmount      Decimal?  @default(0) @map("unpaid_amount") @db.Decimal(12, 2)
+  orderAdjustTotal  Decimal?  @default(0) @map("order_adjust_total") @db.Decimal(12, 2)
+  monthTag          String?   @map("month_tag") @db.VarChar(20)
+  statusText        String?   @map("status_text") @db.VarChar(50)
+
+  order             Order?    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  payments          Payment[]
+
+  @@unique([databaseName, orderNo])
+  @@index([customerName])
+  @@index([unpaidAmount])
+  @@map("finance_orders")
+}
+
+model Payment {
+  id              Int          @id @default(autoincrement())
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  databaseName    String       @default("smartdoor") @map("database_name") @db.VarChar(50)
+  orderId         Int?         @map("order_id")
+  financeOrderId  Int?         @map("finance_order_id")
+  amount          Decimal?     @default(0) @db.Decimal(12, 2)
+  paymentDate     DateTime?    @map("payment_date") @db.Date
+  paymentMethod   String?      @map("payment_method") @db.VarChar(50)
+  notes           String?      @db.Text
+
+  order           Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  financeOrder    FinanceOrder? @relation(fields: [financeOrderId], references: [id], onDelete: SetNull)
+
+  @@index([databaseName])
+  @@map("payments")
+}
+
+model CustomerFundFlow {
+  id             Int      @id @default(autoincrement())
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  databaseName   String   @default("smartdoor") @map("database_name") @db.VarChar(50)
+  clientId       Int?     @map("client_id")
+  clientCode     String   @map("client_code") @db.VarChar(50)
+  customerName   String?  @map("customer_name") @db.VarChar(200)
+  paymentId      Int?     @map("payment_id")
+  amount         Decimal  @db.Decimal(12, 2)
+  flowType       String   @default("预付款") @map("flow_type") @db.VarChar(50)
+  paymentDate    DateTime? @map("payment_date") @db.Date
+  paymentMethod  String?  @map("payment_method") @db.VarChar(50)
+  notes          String?  @db.Text
+
+  client         Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([databaseName, clientCode])
+  @@index([paymentId])
+  @@map("customer_fund_flows")
+}
+
+model CustomerBalance {
+  id              Int      @id @default(autoincrement())
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  databaseName    String   @default("smartdoor") @map("database_name") @db.VarChar(50)
+  clientId        Int?     @map("client_id")
+  clientCode      String   @map("client_code") @db.VarChar(50)
+  customerName    String?  @map("customer_name") @db.VarChar(200)
+  prepaidBalance  Decimal? @default(0) @map("prepaid_balance") @db.Decimal(12, 2)
+  totalTopup      Decimal? @default(0) @map("total_topup") @db.Decimal(12, 2)
+  totalSpent      Decimal? @default(0) @map("total_spent") @db.Decimal(12, 2)
+
+  client          Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([databaseName, clientCode])
+  @@map("customer_balances")
+}
+
+model CustomerAdjustment {
+  id             Int      @id @default(autoincrement())
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  databaseName   String   @default("smartdoor") @map("database_name") @db.VarChar(50)
+  clientCode     String?  @map("client_code") @db.VarChar(50)
+  customerName   String?  @map("customer_name") @db.VarChar(200)
+  adjustAmount   Decimal  @map("adjust_amount") @db.Decimal(12, 2)
+  adjustType     String?  @default("人工调整") @map("adjust_type") @db.VarChar(50)
+  notes          String?  @db.Text
+
+  @@index([databaseName])
+  @@map("customer_adjustments")
+}
+
+model OrderAdjustment {
+  id             Int      @id @default(autoincrement())
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  databaseName   String   @default("smartdoor") @map("database_name") @db.VarChar(50)
+  orderNo        String?  @map("order_no") @db.VarChar(100)
+  orderNumber    String?  @map("order_number") @db.VarChar(100)
+  adjustAmount   Decimal  @map("adjust_amount") @db.Decimal(12, 2)
+  adjustType     String?  @default("订单调整") @map("adjust_type") @db.VarChar(50)
+  notes          String?  @db.Text
+
+  @@index([databaseName, orderNo])
+  @@map("order_adjustments")
+}
+
+model MaterialFormula {
+  id             Int      @id @default(autoincrement())
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  databaseName   String   @default("smartdoor") @map("database_name") @db.VarChar(50)
+  materialSize   String   @map("material_size") @db.VarChar(200)
+  formulaId      String   @map("formula_id") @db.VarChar(100)
+  formulaType    String   @map("formula_type") @db.VarChar(50)
+  lineType       String?  @map("line_type") @db.Text
+  trackType      String?  @map("track_type") @db.Text
+  square         String?  @db.Text
+  formulaData    String?  @map("formula_data") @db.Text
+
+  @@unique([databaseName, formulaId])
+  @@index([formulaId])
+  @@map("material_formulas")
+}
+
+model AddPrice {
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  databaseName String   @default("smartdoor") @map("database_name") @db.VarChar(50)
+  name         String?  @db.VarChar(200)
+  price        Decimal? @default(0) @db.Decimal(12, 2)
+  unit         String?  @db.VarChar(50)
+  remark       String?  @db.Text
+  lockway      String?  @db.VarChar(100)
+  direction    String?  @db.VarChar(50)
+
+  @@map("add_prices")
+}
+
+model GlassHole {
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  databaseName String   @default("smartdoor") @map("database_name") @db.VarChar(50)
+  name         String?  @db.VarChar(200)
+  config       String?  @db.Text
+
+  @@unique([databaseName, name])
+  @@map("glass_holes")
+}
+
+model Image {
+  id           String   @db.VarChar(100)
+  databaseName String   @default("smartdoor") @map("database_name") @db.VarChar(50)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  series       String?  @db.VarChar(100)
+  imageBlob    Bytes?   @map("image_blob")
+  imageUrl     String?  @map("image_url") @db.VarChar(500)
+
+  @@id([id, databaseName])
+  @@index([databaseName])
+  @@map("images")
+}
+
+model Template {
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  databaseName String   @default("smartdoor") @map("database_name") @db.VarChar(50)
+  name         String?  @db.VarChar(200)
+  templateType String?  @map("template_type") @db.VarChar(50)
+  content      String?  @db.Text
+
+  @@unique([databaseName, name, templateType])
+  @@map("templates")
+}
+
+model Scanner {
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  databaseName String   @default("smartdoor") @map("database_name") @db.VarChar(50)
+  name         String?  @db.VarChar(200)
+  scannerType  String?  @map("scanner_type") @db.VarChar(50)
+  config       String?  @db.Text
+
+  @@unique([databaseName, name])
+  @@map("scanners")
+}
+
+model ShortLink {
+  id        String   @id @db.VarChar(50)
+  url       String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("shortlinks")
+}
+
+model Setting {
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  databaseName String   @default("smartdoor") @map("database_name") @db.VarChar(50)
+  key          String   @db.VarChar(100)
+  value        String?  @db.Text
+
+  @@unique([databaseName, key])
+  @@index([key])
+  @@map("settings")
+}
+
+model UpdateInfo {
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  databaseName String   @default("smartdoor") @map("database_name") @db.VarChar(50)
+  message      String?  @db.Text
+  version      String?  @db.VarChar(50)
+
+  @@map("update_info")
+}
+
+model AdminAuditLog {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  username  String   @db.VarChar(100)
+  action    String   @db.VarChar(100)
+  ds        String?  @db.VarChar(50)
+  status    String   @default("success") @db.VarChar(20)
+  ip        String?  @db.VarChar(50)
+  detail    String?  @db.Text
+
+  @@index([username])
+  @@index([action])
+  @@index([ds])
+  @@map("admin_audit_logs")
+}
