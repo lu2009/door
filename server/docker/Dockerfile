@@ -18,6 +18,7 @@ COPY --from=builder /app/package.json ./
 COPY --from=builder /app/prisma ./prisma
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+RUN chown -R appuser:appgroup /app
 USER appuser
 EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -f http://localhost:5000/healthz || exit 1
