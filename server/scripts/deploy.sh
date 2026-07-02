@@ -32,16 +32,15 @@ chmod -R a+rX ../frontend
 # Pull latest images
 docker compose pull
 
-# Build and start services
-docker compose up -d --build --scale backend="${BACKEND_REPLICAS:-2}"
+backend_replicas="${BACKEND_REPLICAS:-2}"
 
-# Run database migrations
-echo "Running database migrations..."
-sleep 5
-docker compose exec -T backend npx prisma migrate deploy
+# Start with a single backend so migrations/seeding happen once before scaling out.
+docker compose up -d --build --scale backend=1
 
-echo "Seeding default account..."
-docker compose exec -T backend npm run db:seed
+if [ "$backend_replicas" -gt 1 ]; then
+  echo "Scaling backend to ${backend_replicas} replicas..."
+  docker compose up -d --scale backend="$backend_replicas"
+fi
 
 # Verify deployment
 echo "Verifying deployment..."

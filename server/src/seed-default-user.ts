@@ -38,7 +38,11 @@ export async function seedDefaultUser(prisma: PrismaClient): Promise<void> {
     return;
   }
 
-  await prisma.user.create({ data });
+  await prisma.user.upsert({
+    where: { username: DEFAULT_USERNAME },
+    update: {},
+    create: data,
+  });
 }
 
 const DEFAULT_LOGIN_REGISTRANT_SETTINGS: Record<string, unknown> = {

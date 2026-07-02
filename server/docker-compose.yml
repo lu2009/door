@@ -72,18 +72,6 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        set -e
-        echo "Running Prisma migrations..."
-        node node_modules/.bin/prisma migrate deploy
-        echo "Starting application..."
-        if [ "$$NODE_ENV" = "development" ]; then
-          exec npm run dev
-        fi
-        exec node dist/index.js
     environment:
       <<: *common-env
       TZ: Asia/Shanghai
