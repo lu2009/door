@@ -17,7 +17,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/prisma ./prisma
 COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod 755 /entrypoint.sh && chown appuser:appgroup /entrypoint.sh
 RUN chown -R appuser:appgroup /app
 USER appuser
 EXPOSE 5000

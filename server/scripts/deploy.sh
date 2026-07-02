@@ -37,6 +37,15 @@ backend_replicas="${BACKEND_REPLICAS:-2}"
 # Start with a single backend so migrations/seeding happen once before scaling out.
 docker compose up -d --build --scale backend=1
 
+# Wait for the first backend to finish migrations/seeding before scaling out.
+for i in $(seq 1 20); do
+  if curl -sf http://localhost/healthz > /dev/null 2>&1; then
+    break
+  fi
+  echo "Waiting for primary backend... ($i/20)"
+  sleep 3
+done
+
 if [ "$backend_replicas" -gt 1 ]; then
   echo "Scaling backend to ${backend_replicas} replicas..."
   docker compose up -d --scale backend="$backend_replicas"
