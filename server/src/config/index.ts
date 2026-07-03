@@ -6,6 +6,8 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   isDev: (process.env.NODE_ENV || 'development') === 'development',
   isProd: process.env.NODE_ENV === 'production',
+  appVersion: process.env.APP_VERSION || '1.0.3',
+  webVersion: process.env.WEB_VERSION || '2.3.7',
 
   // Database
   databaseUrl: process.env.DATABASE_URL || 'postgresql://smartdoor:smartdoor123@db:5432/smartdoor',
@@ -35,4 +37,14 @@ export const config = {
 
   // Logging
   logLevel: process.env.LOG_LEVEL || 'info',
+
+  // Update metadata
+  update: {
+    apkUrl: process.env.APK_UPDATE_URL || 'https://www.samrtdoor.com.cn/apk/smartdoor-1.0.3.apk',
+    apkMessage: process.env.APK_UPDATE_MESSAGE || '1.0.3 修复了一些已知问题',
+    forceApkUpdate: process.env.FORCE_APK_UPDATE === 'true',
+    webUrl: process.env.WEB_UPDATE_URL || 'https://www.samrtdoor.com.cn/hotupdate/dist-2.3.7.zip',
+    webMessage: process.env.WEB_UPDATE_MESSAGE || '样式更新',
+    forceWebUpdate: process.env.FORCE_WEB_UPDATE === 'true',
+  },
 };

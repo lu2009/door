@@ -1,4 +1,5 @@
 import { prisma } from '../../database';
+import { config } from '../../config';
 import { safeLoads } from '../../utils/helpers';
 
 function glassHoleName(body: Record<string, unknown>): string {
@@ -397,14 +398,14 @@ export async function deleteParametricPattern(ds: string, id: string) {
 
 export async function getVersionInfo() {
   return {
-    apkUpdateMessage: '1.0.3 修复了一些已知问题',
-    apkUrl: 'https://www.samrtdoor.com.cn/apk/smartdoor-1.0.3.apk',
-    apkVersion: '1.0.3',
+    apkUpdateMessage: config.update.apkMessage,
+    apkUrl: config.update.apkUrl,
+    apkVersion: config.appVersion,
     code: 0,
-    forceApkUpdate: false,
-    forceWebUpdate: false,
-    webUpdateMessage: '样式更新',
-    webUpdateUrl: 'https://www.samrtdoor.com.cn/hotupdate/dist-2.3.7.zip',
-    webVersion: '2.3.7',
+    forceApkUpdate: config.update.forceApkUpdate,
+    forceWebUpdate: config.update.forceWebUpdate,
+    webUpdateMessage: config.update.webMessage,
+    webUpdateUrl: config.update.webUrl,
+    webVersion: config.webVersion,
   };
 }

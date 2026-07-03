@@ -8,6 +8,7 @@
     "build": "tsc && npx prisma generate",
     "start": "node dist/index.js",
     "contract:prod": "tsx scripts/compare-production-contract.ts",
+    "sync:prod-frontend": "tsx scripts/sync-production-frontend.ts",
     "sync:prod-settings": "tsx scripts/sync-production-settings.ts",
     "sync:prod-data": "tsx scripts/sync-production-data.ts",
     "db:generate": "prisma generate",
