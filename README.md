@@ -81,6 +81,42 @@ docker compose up -d
 bash scripts/deploy.sh
 ```
 
+### 5. NAS 更新部署
+
+以后在 NAS 上更新代码，固定按这两步执行：
+
+```bash
+cd /vol1/1000/door
+git pull
+
+cd server
+bash scripts/deploy.sh
+```
+
+`git pull` 只会更新代码，不会自动重启正在运行的容器。  
+`bash scripts/deploy.sh` 会自动完成重新构建、迁移、seed、启动服务和健康检查。
+
+### 6. 同步生产前端静态资源
+
+如果生产 `dist` 包文件名会变化，不要再猜 zip 名称。这个仓库现在直接从生产首页抓取已部署的前端资源：
+
+```bash
+cd server
+
+# 默认同步到 ../frontend
+npm run sync:prod-frontend
+
+# 自定义源站或输出目录
+npm run sync:prod-frontend -- --base-url https://www.samrtdoor.com.cn/ --output-dir ../frontend
+```
+
+这个脚本会：
+
+- 抓取生产首页 `index.html`
+- 递归下载页面和 chunk 引用到的同域 `js/css/png/ico/gif.worker.js/字体` 等静态资源
+- 额外尝试补齐 `js/css/gif.worker.js` 的 `.gz` 伴生文件，以及少量固定静态文件
+- 按生产目录结构覆盖本地 `frontend/`
+
 ## 服务架构
 
 ```
