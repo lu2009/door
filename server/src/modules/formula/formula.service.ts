@@ -539,7 +539,9 @@ export async function saveFormula(ds: string, body: Record<string, unknown>) {
     ? (Array.isArray(rawTrack) ? JSON.stringify(rawTrack) : String(rawTrack))
     : null;
   const rawSquare = inner['square'];
-  const square = rawSquare !== null && rawSquare !== undefined ? String(rawSquare) : null;
+  const square = rawSquare !== null && rawSquare !== undefined
+    ? (typeof rawSquare === 'object' ? JSON.stringify(rawSquare) : String(rawSquare))
+    : null;
   const formulaData = inner;
 
   if (!materialSize) {
