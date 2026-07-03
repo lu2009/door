@@ -8,6 +8,7 @@ x-common-env: &common-env
 
 services:
   postgres:
+    container_name: door-postgres
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: smartdoor
@@ -29,6 +30,7 @@ services:
       - smartdoor-network
 
   redis:
+    container_name: door-redis
     image: redis:7-alpine
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     ports:
@@ -45,6 +47,7 @@ services:
       - smartdoor-network
 
   backend:
+    container_name: door-backend
     build:
       context: .
       dockerfile: docker/Dockerfile
@@ -72,6 +75,7 @@ services:
     # Scale horizontally: docker compose up -d --scale backend=3
 
   nginx:
+    container_name: door-nginx
     image: nginx:1.27-alpine
     ports:
       - "80:80"
