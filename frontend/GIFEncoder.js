@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <script src="https://unpkg.com/vue@3.5.13" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/vue-router@4.5.0" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/jquery@3.7.1" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/element-plus@2.9.10" crossorigin="anonymous"></script>
+    <link href="https://unpkg.com/element-plus/dist/index.css" rel="stylesheet" crossorigin="anonymous">
+    <script src="https://unpkg.com/echarts@5.6.0/dist/echarts.min.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/konva@10.0.0/konva.min.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/exceljs@4.4.0/dist/exceljs.min.js" crossorigin="anonymous"></script>
+
+    <meta charset="UTF-8">
+    <link rel="icon" href="/favicon.ico">
+  
+      <!-- 正确写法 -->
+      <link rel="stylesheet" type="text/css" media="print" href="/print-lock.css">
+    <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0"> -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>开门红</title>
+    <script type="module" crossorigin src="/js/index-46df2d8b.js"></script>
+    <link rel="modulepreload" crossorigin href="/js/vue-51885119.js">
+    <link rel="modulepreload" crossorigin href="/js/element-plus-1cb3551d.js">
+    <link rel="modulepreload" crossorigin href="/js/three-1d8702db.js">
+    <link rel="stylesheet" href="/css/vue-13f98bdc.css">
+    <link rel="stylesheet" href="/css/element-plus-6bd3a0dc.css">
+    <link rel="stylesheet" href="/css/index-18e485ea.css">
+  </head>
+  <body>
+    <div id="app"></div>
+    
+   
+<script src="https://lf-cdn.coze.cn/obj/unpkg/flow-platform/chat-app-sdk/1.2.0-beta.19/libs/cn/index.js"></script>
+<style>
+  /* 扣子智能体链接样式修复 */
+  a[href] {
+    text-decoration: underline !important;
+    cursor: pointer !important;
+    pointer-events: auto !important;
+  }
+  
+  a[href]:hover {
+    opacity: 0.8;
+  }
+  
+
+</style>
+<script>
+  new CozeWebSDK.WebChatClient({
+    config: {
+      bot_id: '7598032591115681838',
+      
+      isIframe: false,
+    },
+    auth: {
+      type: 'token',
+      token: 'sat_Ek19nCnKZ0SVqRj8YnkU3SGb4120XPPmNvyKu5NkcKW6xpKmIt2e0zhrWc9564hQ',
+      onRefreshToken: async () => 'sat_Ek19nCnKZ0SVqRj8YnkU3SGb4120XPPmNvyKu5NkcKW6xpKmIt2e0zhrWc9564hQ',
+    },
+    ui: {
+      base: {
+      icon: 'https://www.samrtdoor.com.cn/smartAI.png',
+        zIndex: 1000,
+      },
+      chatBot: {
+        title: '小红智能客服',
+        uploadable: false,
+         isNeedAudio: false,
+        isNeedAddNewConversation: false,
+      },
+     // 配置用户信息
+  userInfo: {
+      id: '12345',
+      url: 'https://www.samrtdoor.com.cn/smartAI.png',
+      nickname: 'John',
+    },
+        footer: {
+        isShow: false,
+    },
+    }
+  });
+  
+  // 动态调整扣子智能体位置，避开导航栏
+  function adjustCozePosition() {
+    // 查找所有可能的扣子容器元素
+    const selectors = [
+      '[id*="coze"]',
+      '[class*="coze"]',
+      'iframe[src*="coze"]',
+      'div[style*="position: fixed"]',
+      'div[style*="position:fixed"]'
+    ];
+    
+    selectors.forEach(selector => {
+      const elements = document.querySelectorAll(selector);
+      elements.forEach(el => {
+        const style = window.getComputedStyle(el);
+        // 只处理 fixed 定位的元素
+        if (style.position === 'fixed') {
+          el.style.zIndex = '1001';
+          
+          // 根据屏幕宽度调整位置
+          const isDesktop = window.innerWidth >= 768;
+          if (isDesktop) {
+            // 电脑端：避开顶部导航栏
+            if (style.top !== 'auto' && parseInt(style.top) < 60) {
+              el.style.top = '60px';
+            }
+          } else {
+            // 移动端：避开底部导航栏
+            if (style.bottom !== 'auto' && parseInt(style.bottom) < 65) {
+              el.style.bottom = '65px';
+            }
+          }
+        }
+      });
+    });
+  }
+  
+  // DOM加载完成后执行
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(adjustCozePosition, 500);
+      setTimeout(adjustCozePosition, 1000);
+      setTimeout(adjustCozePosition, 2000);
+    });
+  } else {
+    setTimeout(adjustCozePosition, 500);
+    setTimeout(adjustCozePosition, 1000);
+    setTimeout(adjustCozePosition, 2000);
+  }
+  
+  // 监听窗口大小变化
+  window.addEventListener('resize', adjustCozePosition);
+  
+  // 使用 MutationObserver 监听 DOM 变化
+  const observer = new MutationObserver(() => {
+    adjustCozePosition();
+  });
+  
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+</script>
+  </body>
+</html>
