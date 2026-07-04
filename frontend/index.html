@@ -2,14 +2,14 @@
 <html lang="">
   <head>
     <script src="/js/local-request-interceptor.js"></script>
-    <script src="/vendor/vue.global.prod.js"></script>
-    <script src="/vendor/vue-router.global.prod.js"></script>
-    <script src="/vendor/jquery.min.js"></script>
-    <script src="/vendor/index.full.min.js"></script>
-    <link href="/vendor/index.css" rel="stylesheet">
-    <script src="/vendor/echarts.min.js"></script>
-    <script src="/vendor/konva.min.js"></script>
-    <script src="/vendor/exceljs.min.js"></script>
+    <script src="https://unpkg.com/vue@3.5.13" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/vue-router@4.5.0" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/jquery@3.7.1" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/element-plus@2.9.10" crossorigin="anonymous"></script>
+    <link href="https://unpkg.com/element-plus/dist/index.css" rel="stylesheet" crossorigin="anonymous">
+    <script src="https://unpkg.com/echarts@5.6.0/dist/echarts.min.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/konva@10.0.0/konva.min.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/exceljs@4.4.0/dist/exceljs.min.js" crossorigin="anonymous"></script>
 
     <meta charset="UTF-8">
     <link rel="icon" href="/favicon.ico">
@@ -19,19 +19,18 @@
     <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0"> -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>开门红</title>
-    <script type="module" crossorigin src="/js/index-d6811f54.js"></script>
-    <link rel="modulepreload" crossorigin href="/js/vue-eb57e413.js">
+    <script type="module" crossorigin src="/js/index-93439c78.js"></script>
+    <link rel="modulepreload" crossorigin href="/js/vue-e094712c.js">
     <link rel="modulepreload" crossorigin href="/js/element-plus-1cb3551d.js">
-    <link rel="modulepreload" crossorigin href="/js/three-2f027280.js">
     <link rel="stylesheet" href="/css/vue-13f98bdc.css">
     <link rel="stylesheet" href="/css/element-plus-6bd3a0dc.css">
-    <link rel="stylesheet" href="/css/index-18e485ea.css">
+    <link rel="stylesheet" href="/css/index-05f5caa2.css">
   </head>
   <body>
     <div id="app"></div>
     
    
-<script src="/vendor/coze-sdk.js"></script>
+<script src="https://lf-cdn.coze.cn/obj/unpkg/flow-platform/chat-app-sdk/1.2.0-beta.19/libs/cn/index.js"></script>
 <style>
   /* 扣子智能体链接样式修复 */
   a[href] {
@@ -60,7 +59,7 @@
     },
     ui: {
       base: {
-      icon: '/smartAI.png',
+      icon: 'https://www.samrtdoor.com.cn/smartAI.png',
         zIndex: 1000,
       },
       chatBot: {
@@ -72,7 +71,7 @@
      // 配置用户信息
   userInfo: {
       id: '12345',
-      url: '/smartAI.png',
+      url: 'https://www.samrtdoor.com.cn/smartAI.png',
       nickname: 'John',
     },
         footer: {

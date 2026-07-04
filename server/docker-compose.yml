@@ -74,6 +74,22 @@ services:
       - smartdoor-network
     # Scale horizontally: docker compose up -d --scale backend=3
 
+  print-service:
+    container_name: door-print-service
+    build:
+      context: ./print-service
+      dockerfile: Dockerfile
+    environment:
+      TZ: Asia/Shanghai
+      NODE_ENV: production
+    ports:
+      - "${PRINT_SERVICE_PORT:-17521}:17521"
+    expose:
+      - "17521"
+    restart: unless-stopped
+    networks:
+      - smartdoor-network
+
   nginx:
     container_name: door-nginx
     image: nginx:1.27-alpine
@@ -86,6 +102,7 @@ services:
       - ../frontend:/usr/share/nginx/html:ro
     depends_on:
       - backend
+      - print-service
     healthcheck:
       test: ["CMD", "nginx", "-t"]
       interval: 30s
