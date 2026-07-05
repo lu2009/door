@@ -647,11 +647,11 @@ async function registerHandlers() {
 		code: 200,
 		allowed: true,
 		message: 'ok',
+	});
 HANDLER_MAP['checkelectrondevicelicense'] = async () => ({
 		code: 200,
 		allowed: true,
 		message: 'ok',
-	});
 	});
 
 	// Client
