@@ -106,6 +106,7 @@ const ACTION_MAP: Record<string, string> = {
   'getimage': 'getimage',
   'getprocedures': 'getprocedures',
   'checkclientdevicelicense': 'checkclientdevicelicense',
+  'checkElectronDeviceLicense': 'checkelectrondevicelicense',
   'changesquare': 'changesquare',
   'drawingbehaviors': 'drawingbehaviors',
   'shortlink_create': 'shortlink_create',
@@ -184,6 +185,7 @@ const ACTION_MAP: Record<string, string> = {
   'clearAccount': 'clearaccount',
   'registrantUser': 'registrantuser',
   'checkClientDeviceLicense': 'checkclientdevicelicense',
+  'checkElectronDeviceLicense': 'checkelectrondevicelicense',
   'finance_checkSystem': 'finance_checksystem',
   'finance_getOrderFinanceSummary': 'finance_getorderfinancesummary',
   'finance_checkOrderPayment': 'finance_checkorderpayment',
@@ -257,6 +259,7 @@ const LEGACY_CONTRACTS: Record<string, LegacyContract> = {
   deleteaddprice: { mapFields: false, responseShape: 'wrapped', successMessage: '加价项目删除成功' },
   drawingbehaviors: { staticResponse: { code: 200, message: 'ok' } },
   checkclientdevicelicense: { methods: ['GET'], responseShape: 'raw-object' },
+  checkelectrondevicelicense: { methods: ["POST"], responseShape: "raw-object" },
   saveformula: { methods: ['POST'], mapFields: false, responseShape: 'raw-object' },
   getdiaoformulas: { methods: ['POST'] },
   getdiaoformulassingle: { methods: ['POST'] },
@@ -642,6 +645,11 @@ async function registerHandlers() {
 		code: 200,
 		allowed: true,
 		message: 'ok',
+HANDLER_MAP['checkelectrondevicelicense'] = async () => ({
+		code: 200,
+		allowed: true,
+		message: 'ok',
+	});
 	});
 
 	// Client
