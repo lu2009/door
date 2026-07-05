@@ -1,5 +1,7 @@
 node_modules/
 dist/
+!print-service/dist/
+!print-service/dist/**
 *.log
 uploads/
 templates/
