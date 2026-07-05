@@ -29,6 +29,26 @@ function textValue(val: unknown): string {
   return val === null || val === undefined ? '' : String(val).trim();
 }
 
+function parseJsonRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value !== 'string' || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+function updateCustomerFields(value: unknown, customerName: string, customerCode: string): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  return {
+    ...(value as Record<string, unknown>),
+    '客户': customerName,
+    '客户编号': customerCode,
+  };
+}
+
 function statusText(unpaid: number): string {
   if (unpaid <= 0) return '已结清';
   return '部分付款';
@@ -450,6 +470,89 @@ export async function addCustomerAdjustment(ds: string, body: Record<string, unk
   };
   const adjustment = await prisma.customerAdjustment.create({ data });
   return { code: 200, data: { success: true, adjustmentId: adjustment.id }, message: 'ok' };
+}
+
+// ─── Update Order Customer ───
+
+export async function updateOrderCustomer(ds: string, body: Record<string, unknown>) {
+  const orderNo = textValue(body['回执单号'] ?? body.orderNo);
+  const customerCode = customerCodeFromBody(body);
+  const customerName = textValue(body['客户'] ?? body['客户名称'] ?? body.customerName);
+  const editor = textValue(body['编辑'] ?? body.editor);
+
+  if (!orderNo) throw new Error('回执单号不能为空');
+  if (!customerCode) throw new Error('客户编号不能为空');
+  if (!customerName) throw new Error('客户不能为空');
+
+  const client = await findClient(ds, customerCode);
+  if (!client) throw new Error(`客户 ${customerCode} 不存在`);
+
+  const result = await prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { databaseName_orderNo: { databaseName: ds, orderNo } },
+      select: { id: true, doorSpecs: true },
+    });
+    if (!order) throw new Error(`订单 ${orderNo} 不存在`);
+
+    const specs = parseJsonRecord(order.doorSpecs);
+    const customerInfo = parseJsonRecord(specs.customerInfo);
+    const pingHui = Array.isArray(specs.ping_hui)
+      ? specs.ping_hui.map(row => updateCustomerFields(row, customerName, client.clientCode))
+      : specs.ping_hui;
+    const diaoHui = Array.isArray(specs.diao_hui)
+      ? specs.diao_hui.map(row => updateCustomerFields(row, customerName, client.clientCode))
+      : specs.diao_hui;
+    const progressData = Array.isArray(specs.progressData)
+      ? specs.progressData.map(row => updateCustomerFields(row, customerName, client.clientCode))
+      : specs.progressData;
+
+    const doorSpecs = JSON.stringify({
+      ...specs,
+      customerInfo: {
+        ...customerInfo,
+        '客户': customerName,
+        '客户编号': client.clientCode,
+      },
+      ...(Array.isArray(specs.ping_hui) ? { ping_hui: pingHui } : {}),
+      ...(Array.isArray(specs.diao_hui) ? { diao_hui: diaoHui } : {}),
+      ...(Array.isArray(specs.progressData) ? { progressData } : {}),
+    });
+
+    const updatedOrder = await tx.order.update({
+      where: { id: order.id },
+      data: {
+        clientId: client.id,
+        customerName,
+        doorSpecs,
+      },
+    });
+
+    const financeOrder = await tx.financeOrder.update({
+      where: { databaseName_orderNo: { databaseName: ds, orderNo } },
+      data: { orderId: order.id, customerName },
+    });
+
+    await tx.progress.updateMany({
+      where: { databaseName: ds, orderId: order.id },
+      data: { customerName },
+    });
+
+    return { order: updatedOrder, financeOrder };
+  });
+
+  return {
+    code: 200,
+    data: {
+      success: true,
+      回执单号: orderNo,
+      客户: customerName,
+      客户编号: client.clientCode,
+      编辑: editor,
+      orderId: result.order.id,
+      financeOrderId: result.financeOrder.id,
+    },
+    message: 'ok',
+  };
 }
 
 // ─── Add Order Adjustment ───

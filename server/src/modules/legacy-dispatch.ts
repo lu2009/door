@@ -79,6 +79,7 @@ const ACTION_MAP: Record<string, string> = {
   'finance_addorderpayment': 'finance_addorderpayment',
   'finance_addorderadjustment': 'finance_addorderadjustment',
   'finance_addcustomeradjustment': 'finance_addcustomeradjustment',
+  'finance_updateordercustomer': 'finance_updateordercustomer',
   'addscanner': 'addscanner',
   'deletescanner': 'deletescanner',
   'setprinters': 'setprinters',
@@ -200,6 +201,7 @@ const ACTION_MAP: Record<string, string> = {
   'finance_addOrderPayment': 'finance_addorderpayment',
   'finance_addOrderAdjustment': 'finance_addorderadjustment',
   'finance_addCustomerAdjustment': 'finance_addcustomeradjustment',
+  'finance_updateOrderCustomer': 'finance_updateordercustomer',
   'clearSelectedOrders': 'clearselectedorders',
   'getParametricPattern': 'getparametricpattern',
   'getParametricPatterns': 'getparametricpatterns',
@@ -832,6 +834,10 @@ HANDLER_MAP['checkelectrondevicelicense'] = async () => ({
   HANDLER_MAP['finance_addcustomeradjustment'] = (p) => {
     if (!hasBodyKeys(p.body)) return Promise.resolve(legacyError(400, '缺少必要参数'));
     return financeServ.addCustomerAdjustment(p.ds, p.body as Record<string, unknown>);
+  };
+  HANDLER_MAP['finance_updateordercustomer'] = (p) => {
+    if (!hasBodyKeys(p.body)) return Promise.resolve(legacyError(400, '缺少必要参数'));
+    return financeServ.updateOrderCustomer(p.ds, p.body as Record<string, unknown>);
   };
   HANDLER_MAP['finance_addorderadjustment'] = (p) => {
     if (!hasBodyKeys(p.body)) return Promise.resolve(legacyError(400, '缺少必要参数'));
