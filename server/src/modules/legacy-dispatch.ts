@@ -107,6 +107,7 @@ const ACTION_MAP: Record<string, string> = {
   'getimage': 'getimage',
   'getprocedures': 'getprocedures',
   'checkclientdevicelicense': 'checkclientdevicelicense',
+  'checkElectronDeviceLicense': 'checkelectrondevicelicense',
   'changesquare': 'changesquare',
   'drawingbehaviors': 'drawingbehaviors',
   'shortlink_create': 'shortlink_create',
