@@ -1,6 +1,18 @@
 (function () {
   var PROD_ORIGIN = "https://www.samrtdoor.com.cn";
   var PROD_PRINT_ORIGIN = "https://www.samrtdoor.com.cn:17521";
+  var LOCAL_PRINT_PREFIXES = [
+    "wss://localhost:17521",
+    "ws://localhost:17521",
+    "https://localhost:17521",
+    "http://localhost:17521",
+    "wss://127.0.0.1:17521",
+    "ws://127.0.0.1:17521",
+    "https://127.0.0.1:17521",
+    "http://127.0.0.1:17521",
+    "//localhost:17521",
+    "//127.0.0.1:17521"
+  ];
 
   function appOrigin() {
     return window.location.origin;
@@ -10,8 +22,21 @@
     return window.location.protocol + "//" + window.location.hostname + ":17521";
   }
 
+  function rewriteOriginPrefix(input, fromOrigin, toOrigin) {
+    if (input.indexOf(fromOrigin) !== 0) return null;
+    return toOrigin + input.slice(fromOrigin.length);
+  }
+
   function rewriteString(input) {
     if (typeof input !== "string") return input;
+    for (var i = 0; i < LOCAL_PRINT_PREFIXES.length; i += 1) {
+      var prefix = LOCAL_PRINT_PREFIXES[i];
+      var target = prefix.indexOf("ws") === 0
+        ? printOrigin().replace(/^http/, "ws")
+        : printOrigin();
+      var rewrittenLocal = rewriteOriginPrefix(input, prefix, target);
+      if (rewrittenLocal) return rewrittenLocal;
+    }
     if (input.indexOf("wss://www.samrtdoor.com.cn:17521") === 0) {
       return printOrigin().replace(/^http/, "ws") + input.slice("wss://www.samrtdoor.com.cn:17521".length);
     }
