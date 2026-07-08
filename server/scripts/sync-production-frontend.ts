@@ -2,15 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
+import { injectInterceptorIntoFrontend } from './inject-local-interceptor';
 
 type CliOptions = {
   outputDir: string;
   baseUrl: string;
 };
-
-const LOCAL_INTERCEPTOR_RELATIVE_PATH = path.join('js', 'local-request-interceptor.js');
-const LOCAL_INTERCEPTOR_SCRIPT_SRC = '/js/local-request-interceptor.js';
-const LOCAL_INTERCEPTOR_SOURCE_PATH = path.resolve(__dirname, 'local-request-interceptor.js');
 
 const STATIC_DIR_NAMES = [
   'js',
@@ -209,39 +206,6 @@ function saveFile(rootDir: string, relativePath: string, content: Buffer | strin
   fs.writeFileSync(fullPath, content);
 }
 
-function ensureLocalInterceptorSource(): string {
-  if (!fs.existsSync(LOCAL_INTERCEPTOR_SOURCE_PATH)) {
-    throw new Error(`未找到本地拦截器源文件: ${LOCAL_INTERCEPTOR_SOURCE_PATH}`);
-  }
-  return fs.readFileSync(LOCAL_INTERCEPTOR_SOURCE_PATH, 'utf8');
-}
-
-function restoreLocalInterceptor(outputDir: string): boolean {
-  const interceptorContent = ensureLocalInterceptorSource();
-  saveFile(outputDir, LOCAL_INTERCEPTOR_RELATIVE_PATH, interceptorContent);
-  return true;
-}
-
-function injectLocalInterceptor(indexHtml: string): string {
-  if (indexHtml.includes(LOCAL_INTERCEPTOR_SCRIPT_SRC)) return indexHtml;
-
-  const interceptorTag = `    <script src="${LOCAL_INTERCEPTOR_SCRIPT_SRC}"></script>`;
-  const moduleScriptPattern = /(\s*)<script\b[^>]*type=["']module["'][^>]*>/i;
-  if (moduleScriptPattern.test(indexHtml)) {
-    return indexHtml.replace(moduleScriptPattern, `$1${interceptorTag}\n$&`);
-  }
-
-  if (indexHtml.includes('</head>')) {
-    return indexHtml.replace('</head>', `${interceptorTag}\n  </head>`);
-  }
-
-  if (indexHtml.includes('</body>')) {
-    return indexHtml.replace('</body>', `${interceptorTag}\n  </body>`);
-  }
-
-  return `${indexHtml}\n${interceptorTag}\n`;
-}
-
 function extractUrlsFromContent(content: string, currentUrl: URL, baseUrl: URL): URL[] {
   const results = new Map<string, URL>();
   const addCandidate = (rawValue: string) => {
@@ -370,10 +334,7 @@ function syncFrontend(options: CliOptions) {
       throw new Error(`同步完成后未找到 index.html: ${indexPath}`);
     }
 
-    restoreLocalInterceptor(options.outputDir);
-    const indexHtml = fs.readFileSync(indexPath, 'utf8');
-    fs.writeFileSync(indexPath, injectLocalInterceptor(indexHtml));
-    console.log(`已注入本地拦截器: ${LOCAL_INTERCEPTOR_RELATIVE_PATH}`);
+    injectInterceptorIntoFrontend(options.outputDir);
 
     console.log(`前端资源已同步到: ${options.outputDir}`);
     console.log(`共同步资源: ${visited.size} 个`);

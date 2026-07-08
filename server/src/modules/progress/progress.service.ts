@@ -234,6 +234,69 @@ function countMatchingDoorRows(specs: Record<string, unknown>, refs: Set<string>
   return doorRowsFromSpecs(specs).filter(row => rowRefs(row).some(ref => refs.has(ref))).length;
 }
 
+function findCachedProgressRow(
+  cachedRows: Record<string, unknown>[],
+  row: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  const refs = new Set(rowRefs(row));
+  return cachedRows.find(cached => rowRefs(cached).some(ref => refs.has(ref)));
+}
+
+function mergeProgressFields(
+  row: Record<string, unknown>,
+  cached?: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!cached) return row;
+  const progressFields: Record<string, unknown> = {};
+  for (let i = 1; i <= 15; i++) {
+    const key = `工序${i}`;
+    if (cached[key] !== undefined) progressFields[key] = cached[key];
+  }
+  for (const key of ['工序', '生产进度', 'procedureName', 'procedureStatus', '扫码员工', '扫码日期']) {
+    if (cached[key] !== undefined) progressFields[key] = cached[key];
+  }
+  return { ...row, ...progressFields };
+}
+
+function progressRowFromDoorRow(
+  row: Record<string, unknown>,
+  order: { orderNo?: string | null; customerName?: string | null; orderDate?: Date | null; client?: Record<string, unknown> | null },
+  specs: Record<string, unknown>,
+): Record<string, unknown> {
+  const customerInfo = isRecord(specs.customerInfo) ? specs.customerInfo : {};
+  const enriched = enrichDoorRow(row, order, specs);
+  return {
+    ...enriched,
+    procedureName: firstNonBlank(row['procedureName'], row['工序'], ''),
+    procedureStatus: row['procedureStatus'] ?? row['生产进度'] ?? null,
+    '业务员': firstNonBlank(row['业务员'], enriched['业务员'], customerInfo['业务员'], ''),
+    '打单人': firstNonBlank(row['打单人'], enriched['打单人'], customerInfo['打单人'], null),
+    '打单操作': firstNonBlank(row['打单操作'], enriched['打单操作'], customerInfo['打单操作'], ''),
+    '生产进度': firstNonBlank(buildProgressText(row), row['生产进度'], enriched['生产进度'], ''),
+    '单号': firstNonBlank(row['单号'], enriched['单号'], ''),
+    orderNo: order.orderNo,
+    order,
+  };
+}
+
+function buildProgressRowsForOrder(
+  order: { orderNo?: string | null; customerName?: string | null; orderDate?: Date | null; doorSpecs?: string | null; client?: Record<string, unknown> | null },
+): Record<string, unknown>[] {
+  const specs = parseSpecs(order.doorSpecs);
+  const rows = doorRowsFromSpecs(specs);
+  const cached = asRecordArray(specs.progressData);
+
+  if (rows.length === 0) {
+    return cached.map(row => progressRowFromDoorRow(row, order, specs));
+  }
+
+  return rows.map(row => progressRowFromDoorRow(
+    mergeProgressFields(row, findCachedProgressRow(cached, row)),
+    order,
+    specs,
+  ));
+}
+
 // ────────────────────── Get Progress ──────────────────────
 
 export async function getProgress(ds: string, orderNo?: string) {
@@ -249,75 +312,48 @@ export async function getProgress(ds: string, orderNo?: string) {
 
   const progressData: Record<string, unknown>[] = [];
   for (const order of orders) {
-    const specs = parseSpecs(order.doorSpecs);
-    const customerInfo = isRecord(specs.customerInfo) ? specs.customerInfo : {};
+    progressData.push(...buildProgressRowsForOrder(order as any));
+  }
 
-    // 1) Emit cached progressData rows (populated by makeReceipt / updateProgress)
-    const cached = asRecordArray(specs.progressData);
-    if (cached.length > 0) {
-      for (const row of cached) {
-        const enriched = enrichDoorRow(row, order as any, specs);
-        progressData.push({
-          ...enriched,
-          procedureName: firstNonBlank(row['procedureName'], row['工序'], ''),
-          procedureStatus: row['procedureStatus'] ?? row['生产进度'] ?? null,
-          '业务员': firstNonBlank(row['业务员'], enriched['业务员'], customerInfo['业务员'], ''),
-          '打单人': firstNonBlank(row['打单人'], enriched['打单人'], customerInfo['打单人'], null),
-          '打单操作': firstNonBlank(row['打单操作'], enriched['打单操作'], customerInfo['打单操作'], ''),
-          '生产进度': firstNonBlank(buildProgressText(row), row['生产进度'], enriched['生产进度'], ''),
-          '单号': firstNonBlank(row['单号'], enriched['单号'], ''),
-          orderNo: order.orderNo,
-          order,
-        });
-      }
-      continue;
-    }
+  return { code: 200, data: { progressData }, message: '数据获取成功' };
+}
 
-    // 2) Fallback: no cached progressData — emit from door rows
-    for (const row of doorRowsFromSpecs(specs)) {
-      // Collect procedure names from 工序1–工序15 fields
-      const procNames: string[] = [];
-      for (let i = 1; i <= 15; i++) {
-        const v = row[`工序${i}`];
-        if (v != null && String(v).trim()) procNames.push(String(v).trim());
-      }
-      // Also check legacy 工序 / 生产进度 fields
-      const legacy = firstNonBlank(row['工序'], row['生产进度']);
-      if (legacy && String(legacy).trim()) procNames.push(String(legacy).trim());
+// ────────────────────── Get More Progress ──────────────────────
 
-      // Deduplicate and enrich
-      for (const procName of [...new Set(procNames)]) {
-        const enriched = enrichDoorRow(row, order as any, specs);
-        progressData.push({
-          ...enriched,
-          procedureName: procName,
-          procedureStatus: row['生产进度'] === undefined || row['生产进度'] === null ? null : String(row['生产进度']),
-          '业务员': firstNonBlank(row['业务员'], enriched['业务员'], customerInfo['业务员'], ''),
-          '打单人': firstNonBlank(row['打单人'], enriched['打单人'], customerInfo['打单人'], null),
-          '打单操作': firstNonBlank(row['打单操作'], enriched['打单操作'], customerInfo['打单操作'], ''),
-          '生产进度': firstNonBlank(buildProgressText(row), enriched['生产进度'], row['生产进度'], ''),
-          '单号': firstNonBlank(row['单号'], enriched['单号'], ''),
-          orderNo: order.orderNo,
-          order,
-        });
-      }
-      // If no procedure fields at all, emit one row so the order is visible
-      if (procNames.length === 0) {
-        const enriched = enrichDoorRow(row, order as any, specs);
-        progressData.push({
-          ...enriched,
-          procedureName: '',
-          procedureStatus: null,
-          '业务员': firstNonBlank(row['业务员'], enriched['业务员'], customerInfo['业务员'], ''),
-          '打单人': firstNonBlank(row['打单人'], enriched['打单人'], customerInfo['打单人'], null),
-          '打单操作': firstNonBlank(row['打单操作'], enriched['打单操作'], customerInfo['打单操作'], ''),
-          '生产进度': '',
-          '单号': firstNonBlank(row['单号'], enriched['单号'], ''),
-          orderNo: order.orderNo,
-          order,
-        });
-      }
-    }
+export async function getMoreProgress(
+  ds: string,
+  customer?: string,
+  address?: string,
+  startDate?: string,
+  endDate?: string,
+) {
+  const { databaseName } = parseDs(ds);
+  const where: Record<string, unknown> = { databaseName };
+
+  if (customer) {
+    where.customerName = { contains: customer };
+  }
+
+  if (address) {
+    where.client = { address: { contains: address } };
+  }
+
+  if (startDate || endDate) {
+    const orderDateFilter: Record<string, Date> = {};
+    if (startDate) orderDateFilter.gte = new Date(startDate);
+    if (endDate) orderDateFilter.lte = new Date(endDate);
+    where.orderDate = orderDateFilter;
+  }
+
+  const orders = await prisma.order.findMany({
+    where,
+    include: { client: true },
+    orderBy: { orderNo: 'asc' },
+  });
+
+  const progressData: Record<string, unknown>[] = [];
+  for (const order of orders) {
+    progressData.push(...buildProgressRowsForOrder(order as any));
   }
 
   return { code: 200, data: { progressData }, message: '数据获取成功' };
@@ -621,7 +657,7 @@ export async function updateProgress(ds: string, procedureSlot: string, orderIds
   return { code: 200, message: `更新成功，共更新 ${totalUpdated} 条记录${failed.size > 0 ? `，${failed.size} 条未匹配已跳过` : ''}` };
 }
 
-export async function updatePrintStatus(ds: string, statusText: string, orderIds: string[], operatorName = '') {
+export async function updatePrintStatus(ds: string, statusText: string, orderIds: string[], operatorName = '', skipDetailRows = false) {
   const { databaseName } = parseDs(ds);
   const refs = new Set(normalizeRefs(orderIds));
   if (!statusText || refs.size === 0) return { code: 400, data: { failed: [...refs] }, message: '缺少必要参数' };
@@ -647,13 +683,44 @@ export async function updatePrintStatus(ds: string, statusText: string, orderIds
     }
 
     const customerInfo = isRecord(currentSpecs.customerInfo) ? currentSpecs.customerInfo : {};
+
+    // Write 工序10 on detail rows (skip when caller already handles it, e.g. updataProgress&param3=工序10)
+    let nextSpecs = { ...currentSpecs };
+    if (!skipDetailRows) {
+      if (orderMatches) {
+        // Order-level match: update 工序10 on ALL detail rows
+        for (const key of ['ping_hui', '平开', 'diao_hui', '吊滑']) {
+          const rows = asRecordArray(nextSpecs[key]);
+          if (rows.length === 0) continue;
+          nextSpecs[key] = rows.map(row => withProgressText({
+            ...row,
+            '工序10': mergePrintStatus(row['工序10'], statusText),
+          }));
+        }
+        if (Array.isArray(nextSpecs.progressData)) {
+          nextSpecs.progressData = asRecordArray(nextSpecs.progressData).map(row => withProgressText({
+            ...row,
+            '工序10': mergePrintStatus(row['工序10'], statusText),
+          }));
+        }
+      } else {
+        // Detail-row-level match: only update matched rows
+        const { specs: updated } = updateSpecsRows(currentSpecs, refs, row => withProgressText({
+          ...row,
+          '工序10': mergePrintStatus(row['工序10'], statusText),
+        }));
+        nextSpecs = updated;
+      }
+    }
+
+    // Write customerInfo['打单操作'] (order-level, for Home page)
     const nextPrintStatus = mergePrintStatus(customerInfo['打单操作'], statusText);
-    const nextSpecs = {
-      ...currentSpecs,
+    nextSpecs = {
+      ...nextSpecs,
       customerInfo: {
         ...customerInfo,
         '打单操作': nextPrintStatus,
-        '单号集': buildReceiptNoSet(currentSpecs),
+        '单号集': buildReceiptNoSet(nextSpecs),
         ...(operatorName ? { '打单人': operatorName } : {}),
       },
     };

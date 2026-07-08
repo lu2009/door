@@ -53,6 +53,17 @@ function rowMatches(row: Record<string, unknown>, ref: string): boolean {
   return rowRefs(row).includes(ref);
 }
 
+function detailRowRefs(row: Record<string, unknown>): string[] {
+  return [
+    row.id,
+    row['id'],
+  ].map(value => String(value || '').trim()).filter(Boolean);
+}
+
+function detailRowMatches(row: Record<string, unknown>, ref: string): boolean {
+  return detailRowRefs(row).includes(ref);
+}
+
 function updateSpecsRows(
   specs: Record<string, unknown>,
   ref: string,
@@ -78,6 +89,27 @@ function updateSpecsRows(
   return { specs: next, updated };
 }
 
+function deleteSpecsRows(
+  specs: Record<string, unknown>,
+  ref: string,
+): { specs: Record<string, unknown>; deleted: number } {
+  let deleted = 0;
+  const next = { ...specs };
+  for (const key of ['ping_hui', '平开', 'diao_hui', '吊滑']) {
+    const rows = asRecordArray(next[key]);
+    if (rows.length === 0) continue;
+    next[key] = rows.filter(row => {
+      if (!detailRowMatches(row, ref)) return true;
+      deleted += 1;
+      return false;
+    });
+  }
+  if (Array.isArray(next.progressData)) {
+    next.progressData = asRecordArray(next.progressData).filter(row => !detailRowMatches(row, ref));
+  }
+  return { specs: next, deleted };
+}
+
 function sumRows(rows: Record<string, unknown>[], key: string): number {
   return rows.reduce((sum, row) => sum + (Number(row[key]) || 0), 0);
 }
@@ -92,6 +124,14 @@ function buildReceiptNoSet(specs: Record<string, unknown>): string {
   if (unique.length > 0) return unique.join('_');
   const existing = customerInfo['单号集'];
   return existing !== null && existing !== undefined ? String(existing).trim() : '';
+}
+
+function buildCurrentReceiptNoSet(specs: Record<string, unknown>): string {
+  const lineNos = doorRowsFromSpecs(specs)
+    .map(row => row['单号'])
+    .filter(value => value !== null && value !== undefined && String(value).trim() !== '')
+    .map(value => String(value).trim());
+  return [...new Set(lineNos)].join('_');
 }
 
 function stringValue(value: unknown): string {
@@ -307,7 +347,14 @@ export async function getDetail(ds: string, orderNo: string) {
 /**
  * Get paginated orders.
  */
-export async function getMoreOrders(ds: string, keyword?: string, page = 1, perPage = 20) {
+export async function getMoreOrders(
+  ds: string,
+  keyword?: string,
+  page = 1,
+  perPage = 20,
+  startDate?: string,
+  endDate?: string,
+) {
   const { databaseName } = parseDs(ds);
   const { skip, take } = paginate(page, perPage);
 
@@ -318,6 +365,13 @@ export async function getMoreOrders(ds: string, keyword?: string, page = 1, perP
       { customerName: { contains: keyword } },
       { brand: { contains: keyword } },
     ];
+  }
+
+  if (startDate || endDate) {
+    const orderDateFilter: Record<string, Date> = {};
+    if (startDate) orderDateFilter.gte = new Date(startDate);
+    if (endDate) orderDateFilter.lte = new Date(endDate);
+    where.orderDate = orderDateFilter;
   }
 
   const [data, total] = await Promise.all([
@@ -599,6 +653,66 @@ export async function deleteRows(ds: string, orderRefs: string[]) {
   });
 
   return { code: 200, deleted_count: result.count, message: '删除成功' };
+}
+
+/**
+ * Delete a single detail row inside doorSpecs by frontend row id.
+ */
+export async function deleteDetailRow(ds: string, rowId: string | number) {
+  const { databaseName } = parseDs(ds);
+
+  const ref = String(rowId || '').trim();
+  if (!ref) throw Object.assign(new Error('缺少必要参数'), { statusCode: 400 });
+
+  const orders = await prisma.order.findMany({
+    where: {
+      databaseName,
+      OR: [{ doorSpecs: { contains: ref } }],
+    },
+  });
+
+  for (const order of orders) {
+    const specs = parseJsonRecord(order.doorSpecs);
+    const { specs: updatedSpecs, deleted } = deleteSpecsRows(specs, ref);
+    if (deleted === 0) continue;
+
+    const customerInfo = parseJsonRecord(updatedSpecs.customerInfo);
+    const rows = doorRowsFromSpecs(updatedSpecs);
+    const nextCustomerInfo = {
+      ...customerInfo,
+      '单号集': buildCurrentReceiptNoSet(updatedSpecs),
+    };
+    const nextSpecs = {
+      ...updatedSpecs,
+      customerInfo: nextCustomerInfo,
+    };
+    const totalAmount = sumRows(rows, '金额');
+    const doorCount = sumRows(rows, '数量');
+    const paidAmount = Number(order.paidAmount || 0);
+    const unpaidAmount = Math.max(0, totalAmount - paidAmount);
+
+    await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        doorSpecs: JSON.stringify(nextSpecs),
+        totalAmount,
+        unpaidAmount,
+        doorCount,
+      },
+    });
+
+    await prisma.financeOrder.updateMany({
+      where: { databaseName, orderNo: order.orderNo },
+      data: {
+        unpaidAmount,
+        statusText: unpaidAmount <= 0 ? '已结清' : '未付清',
+      },
+    });
+
+    return { code: 200, deleted_count: deleted, message: '删除成功' };
+  }
+
+  throw Object.assign(new Error('未找到要删除的明细行'), { statusCode: 404 });
 }
 
 /**

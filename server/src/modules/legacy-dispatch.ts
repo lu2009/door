@@ -186,7 +186,6 @@ const ACTION_MAP: Record<string, string> = {
   'clearAccount': 'clearaccount',
   'registrantUser': 'registrantuser',
   'checkClientDeviceLicense': 'checkclientdevicelicense',
-  'checkElectronDeviceLicense': 'checkelectrondevicelicense',
   'finance_checkSystem': 'finance_checksystem',
   'finance_getOrderFinanceSummary': 'finance_getorderfinancesummary',
   'finance_checkOrderPayment': 'finance_checkorderpayment',
@@ -260,7 +259,7 @@ const LEGACY_CONTRACTS: Record<string, LegacyContract> = {
   addaddprice: { mapFields: false, responseShape: 'wrapped', successMessage: '加价项目添加成功' },
   deleteaddprice: { mapFields: false, responseShape: 'wrapped', successMessage: '加价项目删除成功' },
   drawingbehaviors: { staticResponse: { code: 200, message: 'ok' } },
-  checkclientdevicelicense: { methods: ['GET'], responseShape: 'raw-object' },
+  checkclientdevicelicense: { methods: ['POST'], responseShape: 'raw-object' },
   checkelectrondevicelicense: { methods: ["POST"], responseShape: "raw-object" },
   saveformula: { methods: ['POST'], mapFields: false, responseShape: 'raw-object' },
   getdiaoformulas: { methods: ['POST'] },
@@ -310,6 +309,7 @@ interface HandlerParams {
   param3: string;
   param4: string;
   param5: string;
+  param6: string;
   body: unknown;
   query: Record<string, string>;
   req: Request;
@@ -726,7 +726,15 @@ HANDLER_MAP['checkelectrondevicelicense'] = async () => ({
   };
   HANDLER_MAP['gettabledata'] = async (p) => projectTableData(await orderServ.getTableData(p.ds, p.query.keyword || p.param3, p.query.address || p.param4, p.query.startDate, p.query.endDate));
   HANDLER_MAP['gettabledataforterminal'] = (p) => orderServ.getTableDataForTerminal(p.ds, p.query.clientId || '0');
-  HANDLER_MAP['getmoreorders'] = (p) => orderServ.getMoreOrders(p.ds, p.param3 || '', parseInt(p.query.page || '1'), parseInt(p.query.perPage || '50'));
+  HANDLER_MAP['getmoreorders'] = (p) =>
+    orderServ.getMoreOrders(
+      p.ds,
+      p.param3 || '',
+      parseInt(p.query.page || '1'),
+      parseInt(p.query.perPage || '50'),
+      p.param4 || p.query.startDate,
+      p.param5 || p.query.endDate,
+    );
   HANDLER_MAP['detail'] = (p) => orderServ.getDetail(p.ds, p.param3 || '');
   HANDLER_MAP['combine'] = (p) => {
     if (!hasBodyKeys(p.body)) return Promise.resolve({ code: 400, message: '缺少合并数据或回执单号' });
@@ -736,6 +744,10 @@ HANDLER_MAP['checkelectrondevicelicense'] = async () => ({
     if (p.req.method === 'POST' && Array.isArray(p.body)) {
       return orderServ.deleteRows(p.ds, p.body as string[]);
     }
+    if (p.req.method === 'POST' && hasBodyKeys(p.body)) {
+      const body = p.body as Record<string, unknown>;
+      return orderServ.deleteDetailRow(p.ds, body.id as string);
+    }
     if (!p.param3 || p.param3.startsWith('__missing_')) return Promise.resolve(html500Payload());
     return orderServ.deleteRow(p.ds, p.param3 || '');
   };
@@ -744,7 +756,13 @@ HANDLER_MAP['checkelectrondevicelicense'] = async () => ({
     if (!hasBodyKeys(p.body)) return Promise.resolve({ __statusCode: 400, code: 400, message: 'No data provided' });
     return orderServ.updateRow(p.ds, ((p.body as Record<string, unknown>)?.id as string) || '', p.body as Record<string, unknown>);
   };
-  HANDLER_MAP['getmoretabledate'] = async (p) => projectTableData(await orderServ.getTableData(p.ds, p.param3 || '', p.param4 || '', p.query.startDate, p.query.endDate));
+  HANDLER_MAP['getmoretabledate'] = async (p) => projectTableData(await orderServ.getTableData(
+    p.ds,
+    p.param3 || '',
+    p.param4 || '',
+    p.param5 || p.query.startDate,
+    p.param6 || p.query.endDate,
+  ));
 
   // Progress
   const progServ = await import('./progress/progress.service');
@@ -754,7 +772,14 @@ HANDLER_MAP['checkelectrondevicelicense'] = async () => ({
   HANDLER_MAP['getproductionprogress'] = async (p) => projectProgressData(await progServ.getProgress(p.ds, p.param3 || undefined));
   HANDLER_MAP['getproductionprogressdata'] = async (p) => projectProgressData(await progServ.getProgress(p.ds, p.param3 || undefined));
   HANDLER_MAP['getprogressforterminal'] = async (p) => projectProgressData(await progServ.getProgress(p.ds, p.param3 || undefined));
-  HANDLER_MAP['getmoreprogress'] = async (p) => projectProgressData(await progServ.getProgress(p.ds, undefined));
+  HANDLER_MAP['getmoreprogress'] = async (p) =>
+    projectProgressData(await progServ.getMoreProgress(
+      p.ds,
+      p.param3 || '',
+      p.param4 || '',
+      p.param5 || p.query.startDate,
+      p.param6 || p.query.endDate,
+    ));
   HANDLER_MAP['getlabeldata'] = (p) => {
     const refs = Array.isArray(p.body)
       ? (p.body as unknown[]).map(item => String(item || '')).filter(Boolean)
@@ -774,7 +799,7 @@ HANDLER_MAP['checkelectrondevicelicense'] = async () => ({
     if (isRawAction(p, 'updataProgress') && p.param3 === '工序10' && p.param4) {
       return progServ
         .updateProgress(p.ds, p.param3, p.body as string[], p.param4 || '')
-        .then(result => progServ.updatePrintStatus(p.ds, p.param4, p.body as string[]).then(() => result));
+        .then(result => progServ.updatePrintStatus(p.ds, p.param4, p.body as string[], '', true).then(() => result));
     }
     return progServ.updateProgress(p.ds, p.param3, p.body as string[], p.param4 || '');
   };
@@ -1122,6 +1147,7 @@ export async function legacyDispatch(req: Request, res: Response): Promise<void>
       param3: (req.query.param3 as string) || (req.body as Record<string, unknown>)?.param3 as string || '',
       param4: (req.query.param4 as string) || (req.body as Record<string, unknown>)?.param4 as string || '',
       param5: (req.query.param5 as string) || (req.body as Record<string, unknown>)?.param5 as string || '',
+      param6: (req.query.param6 as string) || (req.body as Record<string, unknown>)?.param6 as string || '',
       body: req.body,
       query: req.query as Record<string, string>,
       req,

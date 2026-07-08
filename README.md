@@ -108,6 +108,9 @@ npm run sync:prod-frontend
 
 # 自定义源站或输出目录
 npm run sync:prod-frontend -- --base-url https://www.samrtdoor.com.cn/ --output-dir ../frontend
+
+# 只注入本地拦截器，不同步资源
+npm run inject:local-interceptor
 ```
 
 这个脚本会：
@@ -116,6 +119,7 @@ npm run sync:prod-frontend -- --base-url https://www.samrtdoor.com.cn/ --output-
 - 递归下载页面和 chunk 引用到的同域 `js/css/png/ico/gif.worker.js/字体` 等静态资源
 - 额外尝试补齐 `js/css/gif.worker.js` 的 `.gz` 伴生文件，以及少量固定静态文件
 - 按生产目录结构覆盖本地 `frontend/`
+- 同步完成后自动复制并注入本地拦截器 `/js/local-request-interceptor.js`
 
 ## 服务架构
 
