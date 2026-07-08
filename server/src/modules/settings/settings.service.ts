@@ -375,13 +375,6 @@ export async function syncParametricPatternsFromProduction(ds: string) {
     update: { value },
     create: { databaseName: targetDs, key: 'parametric_patterns', value },
   });
-  if (targetDs !== 'smartdoor') {
-    await prisma.setting.upsert({
-      where: { databaseName_key: { databaseName: 'smartdoor', key: 'parametric_patterns' } },
-      update: { value },
-      create: { databaseName: 'smartdoor', key: 'parametric_patterns', value },
-    });
-  }
   return templates;
 }
 
