@@ -283,19 +283,19 @@ const LEGACY_CONTRACTS: Record<string, LegacyContract> = {
   getlabeldata: { methods: ['POST'], responseShape: 'raw-object' },
   getscanqrcode: { methods: ['GET'], requiredParams: ['param3'], missingStatus: 500 },
   getprocesscounts: { requiredParams: ['param3', 'param4'], missingStatus: 500 },
-  getparametricpatterns: { badRequest: true },
-  getparametricpattern: { badRequest: true },
+  getparametricpatterns: {},
+  getparametricpattern: {},
   'parametric-patterns': { responseShape: 'wrapped', successMessage: 'ok' },
-  parametric_patterns: { badRequest: true },
-  parametricpatterns: { badRequest: true },
-  parametricpattern: { badRequest: true },
-  patterns: { badRequest: true },
-  getpatterns: { badRequest: true },
-  getpattern: { badRequest: true },
-  doorflowers: { badRequest: true },
-  doorflower: { badRequest: true },
-  getdoorflowers: { badRequest: true },
-  getdoorflower: { badRequest: true },
+  parametric_patterns: {},
+  parametricpatterns: {},
+  parametricpattern: {},
+  patterns: {},
+  getpatterns: {},
+  getpattern: {},
+  doorflowers: {},
+  doorflower: {},
+  getdoorflowers: {},
+  getdoorflower: {},
   checkversionapp: { requiredParams: ['param3'], missingStatus: 500 },
   shortlink_get: { requiredParams: ['param3'], missingStatus: 500 },
 };
@@ -971,19 +971,22 @@ HANDLER_MAP['checkelectrondevicelicense'] = async () => ({
     if (!hasBodyKeys(p.body)) return Promise.resolve(badRequestPayload());
     return settingsServ.createUser(p.ds, p.body as Record<string, unknown>);
   };
-  HANDLER_MAP['getparametricpatterns'] = (p) => settingsServ.getParametricPatterns(p.ds);
-  HANDLER_MAP['getparametricpattern'] = (p) => settingsServ.getParametricPatterns(p.ds);
-  HANDLER_MAP['parametric-patterns'] = async (p) => ({ templates: await settingsServ.getParametricPatterns(p.ds) });
-  HANDLER_MAP['parametric_patterns'] = (p) => settingsServ.getParametricPatterns(p.ds);
-  HANDLER_MAP['parametricpatterns'] = (p) => settingsServ.getParametricPatterns(p.ds);
-  HANDLER_MAP['parametricpattern'] = (p) => settingsServ.getParametricPatterns(p.ds);
-  HANDLER_MAP['patterns'] = (p) => settingsServ.getParametricPatterns(p.ds);
-  HANDLER_MAP['getpatterns'] = (p) => settingsServ.getParametricPatterns(p.ds);
-  HANDLER_MAP['getpattern'] = (p) => settingsServ.getParametricPatterns(p.ds);
-  HANDLER_MAP['doorflowers'] = (p) => settingsServ.getParametricPatterns(p.ds);
-  HANDLER_MAP['doorflower'] = (p) => settingsServ.getParametricPatterns(p.ds);
-  HANDLER_MAP['getdoorflowers'] = (p) => settingsServ.getParametricPatterns(p.ds);
-  HANDLER_MAP['getdoorflower'] = (p) => settingsServ.getParametricPatterns(p.ds);
+  HANDLER_MAP['getparametricpatterns'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['getparametricpattern'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['parametric-patterns'] = async (p) => {
+    const data = await settingsServ.syncParametricPatternsFromProduction(p.ds);
+    return { templates: data };
+  };
+  HANDLER_MAP['parametric_patterns'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['parametricpatterns'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['parametricpattern'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['patterns'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['getpatterns'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['getpattern'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['doorflowers'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['doorflower'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['getdoorflowers'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['getdoorflower'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
   HANDLER_MAP['upsertparametricpattern'] = (p) => {
     if (!hasBodyKeys(p.body)) return Promise.resolve({ code: 200, data: { id: 'smartdoor' }, message: 'ok(updated)' });
     return settingsServ.upsertParametricPattern(p.ds, p.body as Record<string, unknown>);
