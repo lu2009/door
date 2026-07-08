@@ -22,6 +22,17 @@
     return window.location.protocol + "//" + window.location.hostname + ":17521";
   }
 
+  function isProductionParametricPatternsUrl(input) {
+    try {
+      var parsed = new URL(input, window.location.href);
+      return parsed.origin === PROD_ORIGIN
+        && parsed.pathname === "/1"
+        && parsed.searchParams.get("param1") === "parametric-patterns";
+    } catch (error) {
+      return input.indexOf(PROD_ORIGIN + "/1?param1=parametric-patterns") === 0;
+    }
+  }
+
   function rewriteOriginPrefix(input, fromOrigin, toOrigin) {
     if (input.indexOf(fromOrigin) !== 0) return null;
     return toOrigin + input.slice(fromOrigin.length);
@@ -29,6 +40,7 @@
 
   function rewriteString(input) {
     if (typeof input !== "string") return input;
+    if (isProductionParametricPatternsUrl(input)) return input;
     for (var i = 0; i < LOCAL_PRINT_PREFIXES.length; i += 1) {
       var prefix = LOCAL_PRINT_PREFIXES[i];
       var target = prefix.indexOf("ws") === 0
