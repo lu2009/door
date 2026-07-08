@@ -1,5 +1,6 @@
 import { prisma } from '../../database';
 import { safeLoads } from '../../utils/helpers';
+import { ensureLineNumbers } from '../order/line-number.service';
 
 // ──────────────────────────── Utility ────────────────────────────
 
@@ -51,60 +52,6 @@ function buildReceiptNoSet(specs: Record<string, unknown>): string {
   if (unique.length > 0) return unique.join('_');
   const existing = customerInfo['单号集'];
   return existing !== null && existing !== undefined ? String(existing).trim() : '';
-}
-
-function rowId(row: Record<string, unknown>): string {
-  return String(row.id ?? row['id'] ?? '').trim();
-}
-
-function lineDateSuffix(dateValue?: unknown): string {
-  const raw = dateValue !== null && dateValue !== undefined && String(dateValue).trim() !== ''
-    ? new Date(String(dateValue))
-    : new Date();
-  const date = Number.isNaN(raw.getTime()) ? new Date() : raw;
-  const year = String(date.getFullYear()).slice(-2);
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}/${month}/${day}`;
-}
-
-function lineNoNumber(value: unknown, dateSuffix?: string): number | null {
-  const text = String(value ?? '').trim();
-  if (!text) return null;
-  const match = text.match(/^(\d+)-(\d{2})(?:\/(\d{2})\/(\d{2}))?\b/);
-  if (!match) return null;
-  if (dateSuffix) {
-    const [year, month, day] = dateSuffix.split('/');
-    if (match[2] !== year) return null;
-    if (match[3] && match[4] && (match[3] !== month || match[4] !== day)) return null;
-  }
-  return Number(match[1]) || null;
-}
-
-function updateDoorRows(
-  specs: Record<string, unknown>,
-  updater: (row: Record<string, unknown>) => Record<string, unknown>,
-): Record<string, unknown> {
-  const next = { ...specs };
-  for (const key of ['ping_hui', '平开', 'diao_hui', '吊滑']) {
-    const rows = asRecordArray(next[key]);
-    if (rows.length > 0) next[key] = rows.map(row => updater(row));
-  }
-  if (Array.isArray(next.progressData)) {
-    next.progressData = asRecordArray(next.progressData).map(row => updater(row));
-  }
-  return next;
-}
-
-function withReceiptNoSet(specs: Record<string, unknown>): Record<string, unknown> {
-  const customerInfo = parseJsonRecord(specs.customerInfo);
-  return {
-    ...specs,
-    customerInfo: {
-      ...customerInfo,
-      '单号集': buildReceiptNoSet(specs),
-    },
-  };
 }
 
 /** Derive line/track types from diao component names (matching Flask derive_diao_line_track_types) */
@@ -251,87 +198,7 @@ export async function getDiaoFormulasSingle(
 }
 
 async function buildOrderMap(detailIds: string[], ds: string): Promise<Record<string, unknown>> {
-  const map: Record<string, unknown> = {};
-  const ids = [...new Set(detailIds.map(id => String(id || '').trim()).filter(Boolean))];
-  if (ids.length === 0) return map;
-
-  const orders = await prisma.order.findMany({
-    where: {
-      databaseName: ds,
-      OR: ids.map(id => ({ doorSpecs: { contains: id } })),
-    },
-    select: { id: true, orderDate: true, doorSpecs: true },
-  });
-
-  const wanted = new Set(ids);
-  const orderWork: {
-    order: { id: number; orderDate: Date | null; doorSpecs: string | null };
-    specs: Record<string, unknown>;
-    matchedRows: Record<string, unknown>[];
-    dateSuffix: string;
-  }[] = [];
-
-  for (const order of orders) {
-    const specs = parseJsonRecord(order.doorSpecs);
-    const matchedRows = doorRowsFromSpecs(specs).filter(row => wanted.has(rowId(row)));
-    if (matchedRows.length === 0) continue;
-
-    const dateSuffix = lineDateSuffix(
-      parseJsonRecord(specs.customerInfo)['日期'] ?? order.orderDate ?? matchedRows[0]?.['日期'],
-    );
-    orderWork.push({ order, specs, matchedRows, dateSuffix });
-  }
-
-  if (orderWork.length === 0) return map;
-
-  const neededDates = [...new Set(orderWork.map(item => item.dateSuffix))];
-  const maxByDate = Object.fromEntries(neededDates.map(date => [date, 0])) as Record<string, number>;
-  const allOrders = await prisma.order.findMany({
-    where: { databaseName: ds },
-    select: { doorSpecs: true },
-  });
-  for (const order of allOrders) {
-    const specs = parseJsonRecord(order.doorSpecs);
-    for (const row of doorRowsFromSpecs(specs)) {
-      for (const date of neededDates) {
-        const number = lineNoNumber(row['单号'], date);
-        if (number !== null && number > maxByDate[date]) maxByDate[date] = number;
-      }
-    }
-  }
-
-  for (const { order, specs, dateSuffix } of orderWork) {
-    let nextNumber = maxByDate[dateSuffix] || 0;
-    let changed = false;
-
-    for (const row of doorRowsFromSpecs(specs)) {
-      const id = rowId(row);
-      if (!wanted.has(id)) continue;
-      const existing = String(row['单号'] ?? '').trim();
-      if (existing) {
-        map[id] = existing;
-        continue;
-      }
-      nextNumber += 1;
-      const lineNo = `${nextNumber}-${dateSuffix}`;
-      map[id] = lineNo;
-      changed = true;
-    }
-    maxByDate[dateSuffix] = nextNumber;
-
-    if (changed) {
-      const nextSpecs = withReceiptNoSet(updateDoorRows(specs, row => {
-        const id = rowId(row);
-        if (!wanted.has(id) || String(row['单号'] ?? '').trim()) return row;
-        return { ...row, '单号': map[id] };
-      }));
-      await prisma.order.update({
-        where: { id: order.id },
-        data: { doorSpecs: JSON.stringify(nextSpecs) },
-      });
-    }
-  }
-  return map;
+  return ensureLineNumbers(ds, detailIds) as Promise<Record<string, unknown>>;
 }
 
 // ────────────────────── Initialize Data ──────────────────────

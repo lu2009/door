@@ -1,5 +1,6 @@
 import { prisma } from '../../database';
 import { safeLoads, parseDate } from '../../utils/helpers';
+import { ensureLineNumbers } from '../order/line-number.service';
 
 const LEGACY_HTML_500 = '<!doctype html>\n<html lang=en>\n<title>500 Internal Server Error</title>\n<h1>Internal Server Error</h1>\n<p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>';
 
@@ -661,6 +662,9 @@ export async function updatePrintStatus(ds: string, statusText: string, orderIds
   const { databaseName } = parseDs(ds);
   const refs = new Set(normalizeRefs(orderIds));
   if (!statusText || refs.size === 0) return { code: 400, data: { failed: [...refs] }, message: '缺少必要参数' };
+
+  // Ensure line numbers on matched detail rows before writing print status
+  await ensureLineNumbers(databaseName, [...refs]);
 
   const orders = await prisma.order.findMany({ where: { databaseName } });
   const failed = new Set(refs);
