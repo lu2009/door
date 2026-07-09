@@ -60,7 +60,7 @@ Legacy 端点 500 错误可能返回 `text/html`，图片返回 binary。
 | `getprocedures` / `GetProcedures` | any | `param2`=ds | wrapped, `"获取成功"` |
 | `setprocedures` / `SetProcedures` | any | `param2`=ds, body JSON | |
 | `checkclientdevicelicense` | POST | 无 | raw-object, 固定返回 `{code:200, allowed:true, message:'ok'}` |
-| `checkelectrondevicelicense` | POST | 无 | 同上 |
+| `checkelectrondevicelicense` / `checkElectronDeviceLicense` | POST | 无 | 同上 |
 | `registrantuser` | any | `param2`=ds, body JSON | 创建新租户用户 |
 
 ### 客户 (Client)
@@ -95,18 +95,18 @@ Legacy 端点 500 错误可能返回 `text/html`，图片返回 binary。
 | param1 | Method | 参数 | 说明 |
 |--------|--------|------|------|
 | `getprogress` / `getProgress` | any | `param2`=ds, `param3`=orderNo (可选) | 结果经映射 |
-| `getprogressdata` / `getProgressData` | any | `param2`=ds, `param3` (必填) | param3 缺失返回 400 |
-| `getprogresslist` / `getProgressList` | any | `param2`=ds, `param3` (必填) | 同上 |
-| `getproductionprogress` / `getProductionProgress` | any | `param2`=ds, `param3` (必填) | 同上 |
-| `getproductionprogressdata` | any | `param2`=ds, `param3` (必填) | 同上 |
-| `getprogressforterminal` | any | `param2`=ds, `param3` (必填) | 终端专用 |
+| `getprogressdata` / `getProgressData` | any | `param2`=ds, `param3`=orderNo (可选) | 结果经映射 |
+| `getprogresslist` / `getProgressList` | any | `param2`=ds, `param3`=orderNo (可选) | 结果经映射 |
+| `getproductionprogress` / `getProductionProgress` | any | `param2`=ds, `param3`=orderNo (可选) | 结果经映射 |
+| `getproductionprogressdata` / `getProductionProgressData` | any | `param2`=ds, `param3`=orderNo (可选) | 结果经映射 |
+| `getprogressforterminal` / `getProgressForTerminal` | any | `param2`=ds, `param3`=orderNo (可选) | 终端专用，结果经映射 |
 | `getmoreprogress` / `getMoreProgress` | any | `param2`=ds, `param3`=keyword, `param4`=address, `param5`=startDate, `param6`=endDate | 结果经映射 |
 | `getlabeldata` / `getLabelData` | POST | `param2`=ds, body=订单引用数组 | raw-object |
 | `getscanqrcode` / `getScanQRcode` | GET | `param2`=ds, `param3`=orderNo (必填) | param3 缺失返回 500 |
 | `getprocesscounts` / `getProcessCounts` | any | `param2`=ds, `param3` (必填), `param4` (必填) | param3/param4 缺失返回 500 |
 | `updataprogress` / `updateProgress` / `updataProgress` | any | `param2`=ds, `param3`=工序槽位, body=订单引用数组, `param4` | `updataProgress` + 非工序 → `updatePrintStatus`; `updataProgress` + `工序10` + param4 → 先 updateProgress 再 sync 打单操作 |
 | `paymentcollection` / `PaymentCollection` | any | `param2`=ds, `param3` (必填), `param4` | param3 缺失返回 500 |
-| `updatepaymentcollection` / `updatePaymentCollection` / `updatePayment` | any | `param2`=ds, `param3` (必填), `param4` | |
+| `updatepaymentcollection` / `updatePaymentCollection` / `updatePayment` / `updatepayment` / `updataPaymentCollection` / `updatapaymentcollection` | any | `param2`=ds, `param3` (必填), `param4` | |
 | `deleteprogress` / `deleteProgress` / `clearProgress` / `clearprogress` / `deleteprogressforfullorder` | any | `param2`=ds, `param3`=procedure, `param4`=rowRef, body=orderRefs, query `param5` | 多种删除路径 |
 
 ### 财务 (Finance)
@@ -150,7 +150,7 @@ Legacy 端点 500 错误可能返回 `text/html`，图片返回 binary。
 
 | param1 | Method | 参数 | 说明 |
 |--------|--------|------|------|
-| `checkversionapp` / `CheckVersionAPP` | any | `param3` (必填) | param3 缺失返回 500 |
+| `checkversionapp` / `CheckVersionAPP` | any | 无需参数 | 返回版本信息 |
 | `getaddprice` / `getAddPrice` | any | `param2`=ds | wrapped, `"数据获取成功"` |
 | `addaddprice` / `addAddPrice` | any | `param2`=ds, body JSON | wrapped, `"加价项目添加成功"` |
 | `editprice` / `editPrice` | any | `param2`=ds, body JSON | |
@@ -159,15 +159,16 @@ Legacy 端点 500 错误可能返回 `text/html`，图片返回 binary。
 | `glasshole` / `glassHole` | GET/POST | GET: `param2`=ds; POST: `param2`=ds + body JSON | POST 返回 `"保存成功"` |
 | `deleteglasshole` / `deleteGlassHole` | any | `param2`=ds, `param3`=id | |
 | `drawingbehaviors` / `drawingBehaviors` / `DrawingBehaviors` | any | `param2`=ds, body JSON | 固定返回 `{code:200, message:'ok'}` |
-| `changesquare` / `changeSquare` / `changSquare` | any | `param2`=ds, body JSON | |
+| `changesquare` / `changsquare` / `changeSquare` / `changSquare` | any | `param2`=ds, body JSON | |
 | `changedirectionmode` / `changeDirectionMode` | any | `param2`=ds, `param3`=mode | param3 缺失返回 500 |
 | `reversedirection` / `reverseDirection` | any | `param2`=ds | |
 | `savecustomdirectionnames` | any | `param2`=ds, body JSON | |
 | `clearaccount` / `clearAccount` | any | `param2`=ds, body JSON | |
 | `registrantuser` / `registrantUser` | any | `param2`=ds, body JSON | |
-| `parametric-patterns` | any | `param2`=ds | wrapped, `'ok'`; 先 sync 生产再 fallback 本地 |
-| `doorflowers` / `getdoorflowers` / `getdoorflower` / `doorflower` 及其他变体 | any | `param2`=ds | 同上 (sync 优先) |
-| `upsertparametricpattern` | any | `param2`=ds, body JSON | |
+| `parametric-patterns` | any | `param2`=ds | 直接同步生产；生产同步失败时返回错误 |
+| `parametric_patterns` / `parametricpatterns` / `parametricpattern` / `getparametricpatterns` / `getparametricpattern` / `patterns` / `getpatterns` / `getpattern` | any | `param2`=ds | 同步生产，失败后读取本地 |
+| `doorflowers` / `doorFlowers` / `getdoorflowers` / `getDoorFlowers` / `getdoorflower` / `getDoorFlower` / `doorflower` / `doorFlower` | any | `param2`=ds | 同步生产，失败后读取本地 |
+| `upsertparametricpattern` / `upsertParametricPattern` | any | `param2`=ds, body JSON | |
 | `deleteparametricpattern` | any | `param2`=ds, `param3`=id | param3 缺失返回 500 |
 
 ### 文件 (File)
@@ -268,6 +269,8 @@ Legacy 端点 500 错误可能返回 `text/html`，图片返回 binary。
 | POST | `/api/v1/finance/execute-prepayment-allocation` | Body: 执行预付款分配 |
 | POST | `/api/v1/finance/clear-selected-orders` | Body: 订单选择数据 |
 
+> 说明: 当前没有 `/api/v1/finance/update-order-customer` REST 路由；订单客户更新通过 legacy `finance_updateordercustomer` 暴露。
+
 ### Formulas (`/api/v1/formulas`) — 全部需要 Bearer
 
 | Method | Path | 说明 |
@@ -344,9 +347,9 @@ Legacy 端点 500 错误可能返回 `text/html`，图片返回 binary。
 | 类别 | 数量 |
 |------|------|
 | Health/Special | 3 |
-| Legacy dispatch (唯一 action keys) | ~82 (含大小写变体约 120+) |
-| REST API (`/api/v1/*`) | 65 |
-| **总计** | **~148 个独立端点** |
+| Legacy dispatch | 以 `ACTION_MAP` / `HANDLER_MAP` 为准 (包含大量大小写和历史别名) |
+| REST API (`/api/v1/*`) | 当前路由表约 60+；尾部 `/` 与无尾部 `/` 视为同一路由 |
+| **总计** | 以 `server/src/app.ts` 挂载路由和 `legacy-dispatch.ts` 为准 |
 
 ## 关键文件
 
