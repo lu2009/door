@@ -103,8 +103,10 @@ router.post('/payment', async (req: Request, res: Response, next: NextFunction) 
       fail(res, '缺少 ds 参数');
       return;
     }
-    const { param3, param4 } = req.body || {};
-    const result = await progressService.updatePaymentCollection(ds, param3, param4);
+    const { amount, receiptNo } = req.body || {};
+    // amount + receiptNo → UPDATE (set paid to amount for receipt)
+    // receiptNo only → QUERY (get payment status)
+    const result = await progressService.updatePaymentCollection(ds, amount ?? receiptNo, receiptNo ?? '');
     ok(res, result, '收款更新成功');
   } catch (err) {
     next(err);

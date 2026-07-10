@@ -58,15 +58,6 @@ app.all('/1', (req, res, next) => {
     })();
   }
 });
-app.all('/login', async (req, res, next) => {
-  try {
-    const { legacyDispatch } = await import('./modules/legacy-dispatch');
-    await legacyDispatch(req, res);
-  } catch (err) {
-    next(err);
-  }
-});
-
 // Short link redirect
 app.get('/s/:linkId', async (req, res, next) => {
   try {

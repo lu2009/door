@@ -1,6 +1,12 @@
 import { prisma } from '../../database';
 import { safeLoads } from '../../utils/helpers';
 import { ensureLineNumbers } from '../order/line-number.service';
+import {
+  parseJsonRecord,
+  asRecordArray,
+  doorRowsFromSpecs,
+  buildReceiptNoSet,
+} from '../../utils/record-helpers';
 
 // ──────────────────────────── Utility ────────────────────────────
 
@@ -16,42 +22,6 @@ function parseFormulaData(raw: string | null): unknown {
 function parseJsonField(raw: string | null, defaultVal: unknown = null): unknown {
   if (raw === null || raw === undefined) return defaultVal;
   try { return JSON.parse(raw); } catch { return raw; }
-}
-
-function parseJsonRecord(value: unknown): Record<string, unknown> {
-  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
-  if (typeof value !== 'string' || !value.trim()) return {};
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
-  } catch {
-    return {};
-  }
-}
-
-function asRecordArray(value: unknown): Record<string, unknown>[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item))
-    : [];
-}
-
-function doorRowsFromSpecs(specs: Record<string, unknown>): Record<string, unknown>[] {
-  return [
-    ...asRecordArray(specs.ping_hui ?? specs['平开']),
-    ...asRecordArray(specs.diao_hui ?? specs['吊滑']),
-  ];
-}
-
-function buildReceiptNoSet(specs: Record<string, unknown>): string {
-  const customerInfo = parseJsonRecord(specs.customerInfo);
-  const lineNos = doorRowsFromSpecs(specs)
-    .map(row => row['单号'])
-    .filter(value => value !== null && value !== undefined && String(value).trim() !== '')
-    .map(value => String(value).trim());
-  const unique = [...new Set(lineNos)];
-  if (unique.length > 0) return unique.join('_');
-  const existing = customerInfo['单号集'];
-  return existing !== null && existing !== undefined ? String(existing).trim() : '';
 }
 
 /** Derive line/track types from diao component names (matching Flask derive_diao_line_track_types) */
@@ -140,11 +110,7 @@ export async function getDiaoFormulasSingle(
   orderDs?: string
 ) {
   if (!Array.isArray(body?.formula) || !Array.isArray(body?.id)) {
-    return {
-      __statusCode: 400,
-      code: 400,
-      message: '请求格式错误，应包含 formula 和 id 两个数组',
-    };
+    throw Object.assign(new Error('请求格式错误，应包含 formula 和 id 两个数组'), { statusCode: 400 });
   }
 
   const rawFormula = body.formula;
@@ -162,11 +128,7 @@ export async function getDiaoFormulasSingle(
   const foundIds = new Set(formulas.map(f => f.formulaId).filter(Boolean));
   const missingIds = formulaIds.filter(id => !foundIds.has(id));
   if (missingIds.length > 0) {
-    return {
-      __statusCode: 400,
-      code: 400,
-      message: `指定的公式不存在: ${missingIds[0]}`,
-    };
+    throw Object.assign(new Error(`指定的公式不存在: ${missingIds[0]}`), { statusCode: 400 });
   }
 
   const formulasMap: Record<string, unknown> = {};

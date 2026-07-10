@@ -1,4 +1,32 @@
 import { Request, Response } from 'express';
+import {
+  isRecord,
+  hasBodyKeys,
+  firstPresent,
+  numberValue,
+  dateText,
+  parseJsonRecord,
+  asRecordArray,
+  doorRowsFromSpecs,
+  buildReceiptNoSet,
+  buildProgressText,
+  isProcedureSlot,
+} from '../utils/record-helpers';
+
+// ── Finance / settings body extraction helpers (used only in legacy handlers) ──
+
+function customerCodeFromBody(body: Record<string, unknown>): string {
+  return String(body['客户编号'] ?? body['customerCode'] ?? body['clientCode'] ?? '').trim();
+}
+
+function allocationRows(body: Record<string, unknown>): Record<string, unknown>[] {
+  const rows = body['分配列表'] ?? body['allocations'] ?? body['allocationList'] ?? [];
+  return Array.isArray(rows) ? rows.filter((row): row is Record<string, unknown> => !!row && typeof row === 'object' && !Array.isArray(row)) : [];
+}
+
+function glassHoleName(body: Record<string, unknown>): string {
+  return String(body.name || body.materialName || body['材料名称'] || body['名称'] || '').trim();
+}
 
 const ACTION_MAP: Record<string, string> = {
   // Direct lowercase mappings (some clients send lowercase param1)
@@ -275,11 +303,13 @@ const LEGACY_CONTRACTS: Record<string, LegacyContract> = {
   getformulaname: { responseShape: 'wrapped' },
   getpingprice: {},
   getdiaoprice: {},
-  getprogressdata: { requiredParams: ['param3'], missingStatus: 400, missingMessage: 'bad request' },
-  getprogresslist: { requiredParams: ['param3'], missingStatus: 400, missingMessage: 'bad request' },
-  getproductionprogress: { requiredParams: ['param3'], missingStatus: 400, missingMessage: 'bad request' },
-  getproductionprogressdata: { requiredParams: ['param3'], missingStatus: 400, missingMessage: 'bad request' },
-  getprogressforterminal: { staticStatus: 400, staticResponse: { code: 400, data: null, message: '获取明细数据异常: list index out of range' } },
+  // getProgress and its aliases — param3 (orderNo) is optional; the handler
+  // passes p.param3 || undefined, so no requiredParams needed.
+  getprogressdata: {},
+  getprogresslist: {},
+  getproductionprogress: {},
+  getproductionprogressdata: {},
+  getprogressforterminal: {},
   getlabeldata: { methods: ['POST'], responseShape: 'raw-object' },
   getscanqrcode: { methods: ['GET'], requiredParams: ['param3'], missingStatus: 500 },
   getprocesscounts: { requiredParams: ['param3', 'param4'], missingStatus: 500 },
@@ -296,7 +326,8 @@ const LEGACY_CONTRACTS: Record<string, LegacyContract> = {
   doorflower: {},
   getdoorflowers: {},
   getdoorflower: {},
-  checkversionapp: { requiredParams: ['param3'], missingStatus: 500 },
+  // checkversionapp handler ignores param3 entirely — no required params
+  checkversionapp: {},
   shortlink_get: { requiredParams: ['param3'], missingStatus: 500 },
 };
 
@@ -367,14 +398,6 @@ function missingRequiredParam(contract: LegacyContract, params: HandlerParams): 
   return null;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
-
-function hasBodyKeys(value: unknown): boolean {
-  return isRecord(value) && Object.keys(value).length > 0;
-}
-
 function html500Payload(): Record<string, unknown> {
   return { __statusCode: 500, __html: true, message: LEGACY_HTML_500 };
 }
@@ -389,74 +412,6 @@ function badRequestPayload(): Record<string, unknown> {
 
 function isRawAction(params: HandlerParams, ...names: string[]): boolean {
   return names.includes(params.rawAction);
-}
-
-function isProcedureSlot(value: string): boolean {
-  return /^工序\d+$/.test(value.trim());
-}
-
-function firstPresent(...values: unknown[]): unknown {
-  return values.find(value => value !== null && value !== undefined && String(value).trim() !== '');
-}
-
-function numberValue(value: unknown): number {
-  const num = typeof value === 'string' ? Number(value) : Number(value || 0);
-  return Number.isFinite(num) ? num : 0;
-}
-
-function dateText(value: unknown): string | null {
-  if (!value) return null;
-  const date = value instanceof Date ? value : new Date(String(value));
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toISOString().slice(0, 10);
-}
-
-function parseJsonRecord(value: unknown): Record<string, unknown> {
-  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
-  if (typeof value !== 'string' || !value.trim()) return {};
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
-  } catch {
-    return {};
-  }
-}
-
-function asRecordArray(value: unknown): Record<string, unknown>[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is Record<string, unknown> => isRecord(item))
-    : [];
-}
-
-function doorRowsFromSpecs(specs: Record<string, unknown>): Record<string, unknown>[] {
-  return [
-    ...asRecordArray(specs.ping_hui ?? specs['平开']),
-    ...asRecordArray(specs.diao_hui ?? specs['吊滑']),
-  ];
-}
-
-function buildProgressText(row: Record<string, unknown>): string {
-  const parts: string[] = [];
-  for (let i = 1; i <= 15; i++) {
-    const value = row[`工序${i}`];
-    if (value !== null && value !== undefined && String(value).trim() !== '') {
-      parts.push(String(value).trim());
-    }
-  }
-  return parts.join('➞');
-}
-
-function buildReceiptNoSet(specs: Record<string, unknown>, customerInfo: Record<string, unknown>): string | null {
-  const lineNos = doorRowsFromSpecs(specs)
-    .map(row => row['单号'])
-    .filter(value => value !== null && value !== undefined && String(value).trim() !== '')
-    .map(value => String(value).trim());
-  const unique = [...new Set(lineNos)];
-  if (unique.length > 0) return unique.join('_');
-  const existing = customerInfo['单号集'];
-  return existing !== null && existing !== undefined && String(existing).trim() !== ''
-    ? String(existing).trim()
-    : null;
 }
 
 function projectTableData(result: unknown): unknown {
@@ -787,7 +742,15 @@ HANDLER_MAP['checkelectrondevicelicense'] = async () => ({
     return progServ.getLabelData(p.ds, refs);
   };
   HANDLER_MAP['getscanqrcode'] = (p) => progServ.getScanQrCode(p.ds, p.param3 ? [p.param3] : []);
-  HANDLER_MAP['getprocesscounts'] = (p) => progServ.getProcessCounts(p.ds, p.param3 || undefined, p.param4 || undefined);
+  HANDLER_MAP['getprocesscounts'] = async (p) => {
+    try {
+      return await progServ.getProcessCounts(p.ds, p.param3 || undefined, p.param4 || undefined);
+    } catch (err) {
+      const e = err as Error & { statusCode?: number; __html?: boolean };
+      if (e.__html) return { __statusCode: e.statusCode || 500, __html: true, message: LEGACY_HTML_500 };
+      return { __statusCode: e.statusCode || 400, code: e.statusCode || 400, data: null, message: e.message };
+    }
+  };
   HANDLER_MAP['updataprogress'] = (p) => {
     if (!p.param3 || !Array.isArray(p.body) || (p.body as unknown[]).length === 0) {
       if (isRawAction(p, 'updateProgress')) return Promise.resolve(badRequestPayload());
@@ -971,22 +934,51 @@ HANDLER_MAP['checkelectrondevicelicense'] = async () => ({
     if (!hasBodyKeys(p.body)) return Promise.resolve(badRequestPayload());
     return settingsServ.createUser(p.ds, p.body as Record<string, unknown>);
   };
-  HANDLER_MAP['getparametricpatterns'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
-  HANDLER_MAP['getparametricpattern'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+
+  // Legacy production sync — fetch parametric patterns / door flowers from
+  // the production server. The hardcoded URL and sync behaviour live here
+  // because they are adapter-layer concerns; the settings service only handles
+  // local CRUD (getParametricPatterns / upsertParametricPattern / deleteParametricPattern).
+  const PRODUCTION_PARAMETRIC_PATTERNS_URL = 'https://www.samrtdoor.com.cn/1?param1=parametric-patterns';
+  async function syncParametricPatternsFromProduction(ds: string) {
+    const resp = await fetch(PRODUCTION_PARAMETRIC_PATTERNS_URL, {
+      headers: { 'User-Agent': 'SmartDoorBackend/1.0' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!resp.ok) throw new Error(`production returned HTTP ${resp.status}`);
+    const payload = (await resp.json()) as Record<string, unknown>;
+    const code = Number(payload.code || 0);
+    if (code !== 0 && code !== 200) throw new Error(String(payload.message || 'production returned an error'));
+    const data = (payload.data || {}) as Record<string, unknown>;
+    const templates = (Array.isArray(data.templates) ? data.templates : payload.templates) as Record<string, unknown>[];
+    if (!Array.isArray(templates) || templates.length === 0) throw new Error('production parametric pattern payload is invalid');
+
+    const { prisma } = await import('../database');
+    const targetDs = ds;
+    await prisma.setting.upsert({
+      where: { databaseName_key: { databaseName: targetDs, key: 'parametric_patterns' } },
+      update: { value: JSON.stringify(templates) },
+      create: { databaseName: targetDs, key: 'parametric_patterns', value: JSON.stringify(templates) },
+    });
+    return templates;
+  }
+
+  HANDLER_MAP['getparametricpatterns'] = (p) => syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['getparametricpattern'] = (p) => syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
   HANDLER_MAP['parametric-patterns'] = async (p) => {
-    const data = await settingsServ.syncParametricPatternsFromProduction(p.ds);
+    const data = await syncParametricPatternsFromProduction(p.ds);
     return { templates: data };
   };
-  HANDLER_MAP['parametric_patterns'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
-  HANDLER_MAP['parametricpatterns'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
-  HANDLER_MAP['parametricpattern'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
-  HANDLER_MAP['patterns'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
-  HANDLER_MAP['getpatterns'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
-  HANDLER_MAP['getpattern'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
-  HANDLER_MAP['doorflowers'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
-  HANDLER_MAP['doorflower'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
-  HANDLER_MAP['getdoorflowers'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
-  HANDLER_MAP['getdoorflower'] = (p) => settingsServ.syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['parametric_patterns'] = (p) => syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['parametricpatterns'] = (p) => syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['parametricpattern'] = (p) => syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['patterns'] = (p) => syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['getpatterns'] = (p) => syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['getpattern'] = (p) => syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['doorflowers'] = (p) => syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['doorflower'] = (p) => syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['getdoorflowers'] = (p) => syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
+  HANDLER_MAP['getdoorflower'] = (p) => syncParametricPatternsFromProduction(p.ds).catch(() => settingsServ.getParametricPatterns(p.ds));
   HANDLER_MAP['upsertparametricpattern'] = (p) => {
     if (!hasBodyKeys(p.body)) return Promise.resolve({ code: 200, data: { id: 'smartdoor' }, message: 'ok(updated)' });
     return settingsServ.upsertParametricPattern(p.ds, p.body as Record<string, unknown>);

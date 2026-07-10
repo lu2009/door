@@ -1,30 +1,5 @@
 import { prisma } from '../../database';
-
-// ──────────────────────────── Utility ────────────────────────────
-
-function parseJsonRecord(value: unknown): Record<string, unknown> {
-  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
-  if (typeof value !== 'string' || !value.trim()) return {};
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
-  } catch {
-    return {};
-  }
-}
-
-function asRecordArray(value: unknown): Record<string, unknown>[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item))
-    : [];
-}
-
-function doorRowsFromSpecs(specs: Record<string, unknown>): Record<string, unknown>[] {
-  return [
-    ...asRecordArray(specs.ping_hui ?? specs['平开']),
-    ...asRecordArray(specs.diao_hui ?? specs['吊滑']),
-  ];
-}
+import { parseJsonRecord, asRecordArray, doorRowsFromSpecs, buildReceiptNoSet } from '../../utils/record-helpers';
 
 function rowId(row: Record<string, unknown>): string {
   return String(row.id ?? row['id'] ?? '').trim();
@@ -60,18 +35,6 @@ function lineNoNumber(value: unknown, dateSuffix?: string): number | null {
     if (match[3] && match[4] && (match[3] !== month || match[4] !== day)) return null;
   }
   return Number(match[1]) || null;
-}
-
-function buildReceiptNoSet(specs: Record<string, unknown>): string {
-  const customerInfo = parseJsonRecord(specs.customerInfo);
-  const lineNos = doorRowsFromSpecs(specs)
-    .map(row => row['单号'])
-    .filter(value => value !== null && value !== undefined && String(value).trim() !== '')
-    .map(value => String(value).trim());
-  const unique = [...new Set(lineNos)];
-  if (unique.length > 0) return unique.join('_');
-  const existing = customerInfo['单号集'];
-  return existing !== null && existing !== undefined ? String(existing).trim() : '';
 }
 
 function updateDoorRows(
