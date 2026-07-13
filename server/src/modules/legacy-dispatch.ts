@@ -141,6 +141,8 @@ const ACTION_MAP: Record<string, string> = {
   'shortlink_create': 'shortlink_create',
   'shortlink_get': 'shortlink_get',
   'updatapaymentcollection': 'updatapaymentcollection',
+  'syncnoticeboard': 'syncnoticeboard',
+  'syncNoticeBoard': 'syncnoticeboard',
 
   'getClientsInfo': 'getclientsinfo',
   'getLatestClientsInfo': 'getlatestclientsinfo',
@@ -329,6 +331,7 @@ const LEGACY_CONTRACTS: Record<string, LegacyContract> = {
   // checkversionapp handler ignores param3 entirely — no required params
   checkversionapp: {},
   shortlink_get: { requiredParams: ['param3'], missingStatus: 500 },
+  syncnoticeboard: { responseShape: 'raw-object' },
 };
 
 const LEGACY_HTML_500 = '<!doctype html>\n<html lang=en>\n<title>500 Internal Server Error</title>\n<h1>Internal Server Error</h1>\n<p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>';
@@ -908,6 +911,7 @@ HANDLER_MAP['checkelectrondevicelicense'] = async () => ({
   };
   HANDLER_MAP['deleteglasshole'] = (p) => settingsServ.deleteGlassHole(p.ds, p.param3 || '');
   HANDLER_MAP['drawingbehaviors'] = (p) => settingsServ.drawingBehaviorsSet(p.ds, p.body as Record<string, unknown>);
+  HANDLER_MAP['syncnoticeboard'] = async () => ({ code: 200, message: 'none' });
   HANDLER_MAP['changesquare'] = (p) => {
     if (!hasBodyKeys(p.body)) {
       if (isRawAction(p, 'changSquare')) return Promise.resolve(badRequestPayload());

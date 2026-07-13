@@ -18,13 +18,12 @@
     <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0"> -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>开门红</title>
-    <script type="module" crossorigin src="/js/index-46df2d8b.js"></script>
-    <link rel="modulepreload" crossorigin href="/js/vue-51885119.js">
+    <script type="module" crossorigin src="/js/index-c3b16e3f.js"></script>
+    <link rel="modulepreload" crossorigin href="/js/vue-ade658be.js">
     <link rel="modulepreload" crossorigin href="/js/element-plus-1cb3551d.js">
-    <link rel="modulepreload" crossorigin href="/js/three-1d8702db.js">
     <link rel="stylesheet" href="/css/vue-13f98bdc.css">
     <link rel="stylesheet" href="/css/element-plus-6bd3a0dc.css">
-    <link rel="stylesheet" href="/css/index-18e485ea.css">
+    <link rel="stylesheet" href="/css/index-8cdd67d2.css">
   </head>
   <body>
     <div id="app"></div>

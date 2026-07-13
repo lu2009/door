@@ -159,6 +159,7 @@ Legacy 端点 500 错误可能返回 `text/html`，图片返回 binary。
 | `glasshole` / `glassHole` | GET/POST | GET: `param2`=ds; POST: `param2`=ds + body JSON | POST 返回 `"保存成功"` |
 | `deleteglasshole` / `deleteGlassHole` | any | `param2`=ds, `param3`=id | |
 | `drawingbehaviors` / `drawingBehaviors` / `DrawingBehaviors` | any | `param2`=ds, body JSON | 固定返回 `{code:200, message:'ok'}` |
+| `syncNoticeBoard` | GET | `param2`=ds/registrant | 同步公告栏；本地兼容返回 `{code:200, message:'none'}` |
 | `changesquare` / `changsquare` / `changeSquare` / `changSquare` | any | `param2`=ds, body JSON | |
 | `changedirectionmode` / `changeDirectionMode` | any | `param2`=ds, `param3`=mode | param3 缺失返回 500 |
 | `reversedirection` / `reverseDirection` | any | `param2`=ds | |
