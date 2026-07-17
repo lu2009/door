@@ -1,16 +1,8 @@
 import { prisma } from '../../database';
 import { safeLoads, parseDate } from '../../utils/helpers';
 import { ensureLineNumbers } from '../order/line-number.service';
-import {
-  isRecord,
-  asRecordArray,
-  firstNonBlank,
-  doorRowsFromSpecs,
-  buildReceiptNoSet,
-  buildProgressText,
-  isProcedureSlot,
-  resolveDateLabel,
-} from '../../utils/record-helpers';
+
+const LEGACY_HTML_500 = '<!doctype html>\n<html lang=en>\n<title>500 Internal Server Error</title>\n<h1>Internal Server Error</h1>\n<p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>';
 
 // ──────────────────────────── Utility ────────────────────────────
 
@@ -20,11 +12,28 @@ function parseDs(ds: string): { databaseName: string } & Record<string, unknown>
   return { databaseName: ds.substring(0, idx), clientId: ds.substring(idx + 1) };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function asRecordArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is Record<string, unknown> => isRecord(item))
+    : [];
+}
+
 function parseSpecs(value: unknown): Record<string, unknown> {
   if (isRecord(value)) return value;
   if (typeof value !== 'string' || !value.trim()) return {};
   const parsed = safeLoads(value);
   return isRecord(parsed) ? parsed : {};
+}
+
+function firstNonBlank(...values: unknown[]): unknown {
+  for (const value of values) {
+    if (value !== null && value !== undefined && String(value).trim() !== '') return value;
+  }
+  return undefined;
 }
 
 function dateText(value: unknown, gmt = false): string | null {
@@ -64,6 +73,25 @@ function rowRef(row: Record<string, unknown>): string {
   return rowRefs(row)[0] || '';
 }
 
+function doorRowsFromSpecs(specs: Record<string, unknown>): Record<string, unknown>[] {
+  return [
+    ...asRecordArray(specs.ping_hui ?? specs['平开']),
+    ...asRecordArray(specs.diao_hui ?? specs['吊滑']),
+  ];
+}
+
+function buildReceiptNoSet(specs: Record<string, unknown>): string {
+  const customerInfo = isRecord(specs.customerInfo) ? specs.customerInfo : {};
+  const lineNos = doorRowsFromSpecs(specs)
+    .map(row => row['单号'])
+    .filter(value => value !== null && value !== undefined && String(value).trim() !== '')
+    .map(value => String(value).trim());
+  const unique = [...new Set(lineNos)];
+  if (unique.length > 0) return unique.join('_');
+  const existing = customerInfo['单号集'];
+  return existing !== null && existing !== undefined ? String(existing).trim() : '';
+}
+
 function splitPrintStatus(value: unknown): string[] {
   return String(value ?? '')
     .split('_')
@@ -90,6 +118,17 @@ function parseScanMarker(value: unknown): { employee: string; date: string } | n
   const match = text.match(/_(.+)_(\d{4}-\d{2}-\d{2})$/);
   if (!match) return null;
   return { employee: match[1], date: match[2] };
+}
+
+function buildProgressText(row: Record<string, unknown>): string {
+  const parts: string[] = [];
+  for (let i = 1; i <= 15; i++) {
+    const value = row[`工序${i}`];
+    if (value !== null && value !== undefined && String(value).trim() !== '') {
+      parts.push(String(value).trim());
+    }
+  }
+  return parts.join('➞');
 }
 
 function withProgressText(row: Record<string, unknown>): Record<string, unknown> {
@@ -186,6 +225,10 @@ function updateSpecsRows(
     });
   }
   return { specs: next, updated };
+}
+
+function isProcedureSlot(value: string): boolean {
+  return /^工序\d+$/.test(value.trim());
 }
 
 function countMatchingDoorRows(specs: Record<string, unknown>, refs: Set<string>): number {
@@ -486,10 +529,36 @@ export async function getScanQrCode(ds: string, refs: string[]) {
   return { code: 200, data: rows, message: '查询成功' };
 }
 
+function resolveDateLabel(label: string): string {
+  const today = new Date();
+  const fy = today.getFullYear();
+  const fm = String(today.getMonth() + 1).padStart(2, '0');
+  const fd = String(today.getDate()).padStart(2, '0');
+  const ds = `${fy}-${fm}-${fd}`;
+
+  switch (label) {
+    case '当天':
+      return `${ds},${ds}`;
+    case '本周': {
+      const dw = today.getDay() || 7; // Sunday = 7
+      const mon = new Date(today);
+      mon.setDate(today.getDate() - dw + 1);
+      const wy = mon.getFullYear();
+      const wm = String(mon.getMonth() + 1).padStart(2, '0');
+      const wd = String(mon.getDate()).padStart(2, '0');
+      return `${wy}-${wm}-${wd},${ds}`;
+    }
+    case '本月':
+      return `${fy}-${fm}-01,${ds}`;
+    default:
+      return label; // pass through — already a date string or "更多"
+  }
+}
+
 export async function getProcessCounts(ds: string, operatorName?: string, dateRange?: string) {
   const { databaseName } = parseDs(ds);
   if (!operatorName || !dateRange) {
-    throw Object.assign(new Error('missing params'), { statusCode: 500, __html: true });
+    return { __statusCode: 500, __html: true, message: 'missing params' };
   }
 
   // Convert frontend date labels ("当天", "本周", "本月") to actual date strings
@@ -498,7 +567,7 @@ export async function getProcessCounts(ds: string, operatorName?: string, dateRa
   const startDate = parseDate(startText);
   const endDate = parseDate(endText || startText);
   if (!startDate || !endDate) {
-    throw Object.assign(new Error(`获取扫码统计数据异常: time data '${dateRange}' does not match format '%Y-%m-%d'`), { statusCode: 400 });
+    return { __statusCode: 400, code: 400, data: null, message: `获取扫码统计数据异常: time data '${dateRange}' does not match format '%Y-%m-%d'` };
   }
 
   const orders = await prisma.order.findMany({

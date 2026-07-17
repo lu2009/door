@@ -1,18 +1,6 @@
 import { prisma } from '../../database';
-import {
-  parseJsonRecord,
-} from '../../utils/record-helpers';
 
 // ─── Utilities ───
-
-function customerCodeFromBody(body: Record<string, unknown>): string {
-  return String(body['客户编号'] ?? body['customerCode'] ?? body['clientCode'] ?? '').trim();
-}
-
-function allocationRows(body: Record<string, unknown>): Record<string, unknown>[] {
-  const rows = body['分配列表'] ?? body['allocations'] ?? body['allocationList'] ?? [];
-  return Array.isArray(rows) ? rows.filter((row): row is Record<string, unknown> => !!row && typeof row === 'object' && !Array.isArray(row)) : [];
-}
 
 function toNum(val: unknown): number {
   const n = typeof val === 'string' ? parseFloat(val) : Number(val);
@@ -41,6 +29,17 @@ function textValue(val: unknown): string {
   return val === null || val === undefined ? '' : String(val).trim();
 }
 
+function parseJsonRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value !== 'string' || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
 function updateCustomerFields(value: unknown, customerName: string, customerCode: string): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
   return {
@@ -58,6 +57,10 @@ function statusText(unpaid: number): string {
 function orderTotal(fo: Record<string, unknown>): number {
   const order = fo.order && typeof fo.order === 'object' ? fo.order as Record<string, unknown> : {};
   return toNum(order.totalAmount) || toNum(fo.allocatedAmount) + toNum(fo.unpaidAmount) + toNum(fo.orderAdjustTotal);
+}
+
+function customerCodeFromBody(body: Record<string, unknown>): string {
+  return textValue(body['客户编号'] ?? body['customerCode'] ?? body['clientCode']);
 }
 
 async function findClient(ds: string, customerCode?: string) {
@@ -129,6 +132,11 @@ async function updateFinanceOrderAmounts(fo: any, deltaAllocated: number, deltaU
   });
   await syncOrderAmounts(fo.orderId, nextAllocated, nextUnpaid);
   return updated;
+}
+
+function allocationRows(body: Record<string, unknown>): Record<string, unknown>[] {
+  const rows = body['分配列表'] ?? body['allocations'] ?? body['allocationList'] ?? [];
+  return Array.isArray(rows) ? rows.filter((row): row is Record<string, unknown> => !!row && typeof row === 'object' && !Array.isArray(row)) : [];
 }
 
 async function financeOrdersForCustomer(

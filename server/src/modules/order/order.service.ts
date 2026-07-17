@@ -1,11 +1,5 @@
 import { prisma } from '../../database';
 import { paginate } from '../../utils/helpers';
-import {
-  parseJsonRecord,
-  asRecordArray,
-  doorRowsFromSpecs,
-  buildReceiptNoSet,
-} from '../../utils/record-helpers';
 
 /**
  * Parse the ds parameter to extract databaseName.
@@ -20,6 +14,30 @@ function parseDs(ds: string): { databaseName: string; clientId?: string } {
     databaseName: ds.substring(0, underscoreIdx),
     clientId: ds.substring(underscoreIdx + 1),
   };
+}
+
+function parseJsonRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value !== 'string' || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+function asRecordArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item))
+    : [];
+}
+
+function doorRowsFromSpecs(specs: Record<string, unknown>): Record<string, unknown>[] {
+  return [
+    ...asRecordArray(specs.ping_hui ?? specs['平开']),
+    ...asRecordArray(specs.diao_hui ?? specs['吊滑']),
+  ];
 }
 
 function rowRefs(row: Record<string, unknown>): string[] {
@@ -94,6 +112,18 @@ function deleteSpecsRows(
 
 function sumRows(rows: Record<string, unknown>[], key: string): number {
   return rows.reduce((sum, row) => sum + (Number(row[key]) || 0), 0);
+}
+
+function buildReceiptNoSet(specs: Record<string, unknown>): string {
+  const customerInfo = parseJsonRecord(specs.customerInfo);
+  const lineNos = doorRowsFromSpecs(specs)
+    .map(row => row['单号'])
+    .filter(value => value !== null && value !== undefined && String(value).trim() !== '')
+    .map(value => String(value).trim());
+  const unique = [...new Set(lineNos)];
+  if (unique.length > 0) return unique.join('_');
+  const existing = customerInfo['单号集'];
+  return existing !== null && existing !== undefined ? String(existing).trim() : '';
 }
 
 function buildCurrentReceiptNoSet(specs: Record<string, unknown>): string {

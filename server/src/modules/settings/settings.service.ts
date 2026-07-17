@@ -339,6 +339,45 @@ export async function createUser(ds: string, body: Record<string, unknown>) {
   });
 }
 
+const PRODUCTION_PARAMETRIC_PATTERNS_URL =
+  'https://www.samrtdoor.com.cn/1?param1=parametric-patterns';
+
+/**
+ * Sync parametric patterns (door flowers) from the production server.
+ * On success, writes to both the requested ds and 'smartdoor'.
+ * Returns the templates array in the same format as getParametricPatterns.
+ */
+export async function syncParametricPatternsFromProduction(ds: string) {
+  const resp = await fetch(PRODUCTION_PARAMETRIC_PATTERNS_URL, {
+    headers: { 'User-Agent': 'SmartDoorBackend/1.0' },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!resp.ok) {
+    throw new Error(`production returned HTTP ${resp.status}`);
+  }
+  const payload = (await resp.json()) as Record<string, unknown>;
+  const code = Number(payload.code || 0);
+  if (code !== 0 && code !== 200) {
+    throw new Error(String(payload.message || 'production returned an error'));
+  }
+  const data = (payload.data || {}) as Record<string, unknown>;
+  const templates = (
+    Array.isArray(data.templates) ? data.templates : payload.templates
+  ) as Record<string, unknown>[];
+  if (!Array.isArray(templates) || templates.length === 0) {
+    throw new Error('production parametric pattern payload is invalid');
+  }
+
+  const value = JSON.stringify(templates);
+  const targetDs = ds || 'smartdoor';
+  await prisma.setting.upsert({
+    where: { databaseName_key: { databaseName: targetDs, key: 'parametric_patterns' } },
+    update: { value },
+    create: { databaseName: targetDs, key: 'parametric_patterns', value },
+  });
+  return templates;
+}
+
 export async function getParametricPatterns(ds: string) {
   const setting = await prisma.setting.findUnique({
     where: { databaseName_key: { databaseName: ds, key: 'parametric_patterns' } },

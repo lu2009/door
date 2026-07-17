@@ -83,7 +83,7 @@ services:
       TZ: Asia/Shanghai
       NODE_ENV: production
     ports:
-      - "${PRINT_SERVICE_PORT:-17521}:17521"
+      - "${PRINT_SERVICE_PORT:-17522}:17521"
     expose:
       - "17521"
     restart: unless-stopped
