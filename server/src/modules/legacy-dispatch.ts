@@ -269,7 +269,7 @@ const LEGACY_CONTRACTS: Record<string, LegacyContract> = {
   gettemplates: { responseShape: 'raw-object' },
   addscanner: { methods: ['GET'], responseShape: 'raw-object' },
   getlatestclientsinfo: { requiredParams: ['param3'], missingStatus: 400, missingMessage: '缺少 param3' },
-  gettabledataforterminal: { html500: true },
+  gettabledataforterminal: {},
   getorders: { methods: ['POST'] },
   getformulas: { badRequest: true },
   getformulaname: { responseShape: 'wrapped' },
@@ -1001,7 +1001,8 @@ HANDLER_MAP['checkelectrondevicelicense'] = async () => ({
   HANDLER_MAP['getimage'] = async (p) => {
     const imageId = p.rawParam2 || p.param3 || p.param4 || '';
     const imageDs = p.param3 || p.ds;
-    const result = await fileServ.getImage(imageId, imageDs);
+    const maxWidth = parseInt(String(p.query.width || p.body?.width || ''), 10) || 0;
+    const result = await fileServ.getImage(imageId, imageDs, maxWidth);
     return result || { __statusCode: 404, code: 404, message: '图片不存在' };
   };
   HANDLER_MAP['saveimage'] = async (p) => {

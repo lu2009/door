@@ -67,6 +67,13 @@
     if (input.indexOf("//www.samrtdoor.com.cn") === 0) {
       return appOrigin() + input.slice("//www.samrtdoor.com.cn".length);
     }
+    if (/\/1\b/.test(input) && input.indexOf("param1=getimage") !== -1 && input.indexOf("width=") === -1) {
+      return input + "&width=800";
+    }
+    if (/\/api\/v1\/files\/[^/?]+(\?.*)?$/.test(input) && input.indexOf("width=") === -1) {
+      return input + (input.indexOf("?") === -1 ? "?width=800" : "&width=800");
+    }
+
     return input;
   }
 

@@ -47,15 +47,17 @@ router.post('/batch', async (req, res) => {
   }
 });
 
-// GET /:id — get image by id (?ds=xxx&format=base64)
+// GET /:id — get image by id (?ds=xxx&format=base64&width=800)
 // format=base64 returns JSON { base64, contentType } instead of raw binary
+// width=N resizes the image to max N px on the longest side
 router.get('/:id', async (req, res) => {
   try {
     const imageId = req.params.id;
     const ds = (req.query.ds as string) || '';
     const asBase64 = req.query.format === 'base64';
+    const maxWidth = parseInt(req.query.width as string, 10) || 0;
 
-    const result = await fileService.getImage(imageId, ds);
+    const result = await fileService.getImage(imageId, ds, maxWidth);
     if (!result || !result.buffer) {
       fail(res, 'Image not found', 404);
       return;
@@ -69,6 +71,8 @@ router.get('/:id', async (req, res) => {
       });
     } else {
       res.set('Content-Type', result.contentType || 'image/png');
+      res.set('Cache-Control', 'public, max-age=3600, immutable');
+      res.set('ETag', `"${imageId}${maxWidth ? '-' + maxWidth : ''}"`);
       res.send(result.buffer);
     }
   } catch (err) {

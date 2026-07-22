@@ -3,6 +3,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { safeLoads } from '../../utils/helpers';
 import QRCode from 'qrcode';
 import { DEFAULT_TEMPLATES } from './default-templates';
+import { redis } from '../../redis';
+import sharp from 'sharp';
+
+const IMAGE_CACHE_TTL = 3600; // 1 hour
+const IMAGE_CACHE_PREFIX = 'img:';
+const MAX_IMAGE_DIMENSION = 1200; // max width/height in px
 
 export async function saveImage(
   ds: string,
@@ -13,7 +19,12 @@ export async function saveImage(
   const imageId = (body.id as string) || uuidv4();
   const series = (body.series as string) || '';
   const blobKey = `${ds}/${imageId}${getExtension(file.originalname)}`;
-  const imageBytes = new Uint8Array(file.buffer);
+
+  // Resize image to cap max dimension
+  const resized = await sharp(file.buffer)
+    .resize(MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION, { fit: 'inside', withoutEnlargement: true })
+    .toBuffer();
+  const imageBytes = new Uint8Array(resized);
 
   // Upsert DB record
   await prisma.image.upsert({
@@ -28,6 +39,9 @@ export async function saveImage(
     await syncDetailImageId(effectiveOrderDs, series, imageId);
   }
 
+  // Invalidate Redis cache
+  redis.del(`${IMAGE_CACHE_PREFIX}${ds}:${imageId}`).catch(() => {});
+
   return { id: imageId, url: blobKey };
 }
 
@@ -41,48 +55,81 @@ export async function getBatchImages(
 ): Promise<Record<string, { base64: string; contentType: string } | null>> {
   // Deduplicate
   const uniqueIds = [...new Set(ids)];
+  const result: Record<string, { base64: string; contentType: string } | null> = {};
+  const missed: string[] = [];
 
-  // Single DB query for all images (compound PK: id + databaseName)
+  // ── Redis cache check ──
+  const cacheKeys = uniqueIds.map(id => `${IMAGE_CACHE_PREFIX}${ds}:${id}`);
+  const cached = uniqueIds.length > 0 ? await redis.mget(...cacheKeys) : [];
+  for (let idx = 0; idx < uniqueIds.length; idx++) {
+    const id = uniqueIds[idx];
+    const entry = cached[idx];
+    if (entry) {
+      try {
+        result[id] = JSON.parse(entry);
+      } catch {
+        missed.push(id);
+      }
+    } else {
+      missed.push(id);
+    }
+  }
+
+  if (missed.length === 0) return result;
+
+  // ── DB query for cache misses ──
   const records = await prisma.image.findMany({
-    where: {
-      id: { in: uniqueIds },
-      databaseName: ds,
-    },
+    where: { id: { in: missed }, databaseName: ds },
   });
-
-  // Build a map for O(1) lookup
   const recordMap = new Map(records.map(r => [r.id, r]));
 
-  // Download all MinIO objects in parallel (up to reasonable concurrency)
-  const results = await Promise.all(
-    uniqueIds.map(async (id) => {
-      const record = recordMap.get(id);
-      if (!record) {
-        // qrcode is a special virtual image generated on-the-fly
-        if (id === 'qrcode') {
-          const { buffer, contentType } = await buildDefaultQrCode(ds);
-          return { id, value: { base64: buffer.toString('base64'), contentType } };
-        }
-        return { id, value: null };
+  const cacheWrites: Promise<unknown>[] = [];
+  for (const id of missed) {
+    const record = recordMap.get(id);
+    if (!record) {
+      if (id === 'qrcode') {
+        const { buffer, contentType } = await buildDefaultQrCode(ds);
+        const value = { base64: buffer.toString('base64'), contentType };
+        result[id] = value;
+        cacheWrites.push(redis.setex(`${IMAGE_CACHE_PREFIX}${ds}:${id}`, IMAGE_CACHE_TTL, JSON.stringify(value)));
+      } else {
+        result[id] = null;
       }
+      continue;
+    }
 
-      const buffer = record.imageBlob ? Buffer.from(record.imageBlob) : null;
-      const contentType = detectMimeType(record.imageUrl || '');
+    const buffer = record.imageBlob ? Buffer.from(record.imageBlob) : null;
+    const contentType = detectMimeType(record.imageUrl || '');
+    if (!buffer) { result[id] = null; continue; }
 
-      if (!buffer) return { id, value: null };
+    const value = { base64: buffer.toString('base64'), contentType };
+    result[id] = value;
+    cacheWrites.push(redis.setex(`${IMAGE_CACHE_PREFIX}${ds}:${id}`, IMAGE_CACHE_TTL, JSON.stringify(value)));
+  }
 
-      return {
-        id,
-        value: { base64: buffer.toString('base64'), contentType },
-      };
-    }),
-  );
+  // Fire-and-forget cache writes (don't block the response)
+  Promise.all(cacheWrites).catch(() => {});
 
-  return Object.fromEntries(results.map(r => [r.id, r.value]));
+  return result;
 }
 
-export async function getImage(imageId: string, ds: string) {
-  // Use findUnique for compound key, findFirst for simple key
+export async function getImage(imageId: string, ds: string, maxWidth?: number) {
+  const width = maxWidth || 0;
+  const cacheKey = `${IMAGE_CACHE_PREFIX}${ds}:${imageId}${width ? `:w${width}` : ''}`;
+
+  // ── Redis cache first ──
+  try {
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      const parsed = JSON.parse(cached) as { base64: string; contentType: string };
+      return {
+        buffer: Buffer.from(parsed.base64, 'base64'),
+        contentType: parsed.contentType,
+      };
+    }
+  } catch { /* cache miss, fall through to DB */ }
+
+  // ── DB lookup ──
   const record = ds
     ? await prisma.image.findUnique({ where: { id_databaseName: { id: imageId, databaseName: ds } } })
     : await prisma.image.findFirst({ where: { id: imageId } });
@@ -95,10 +142,21 @@ export async function getImage(imageId: string, ds: string) {
   }
 
   if (record.imageBlob) {
-    return {
-      buffer: Buffer.from(record.imageBlob),
-      contentType: detectMimeType(record.imageUrl || ''),
-    };
+    let buffer = Buffer.from(record.imageBlob);
+    const contentType = detectMimeType(record.imageUrl || '');
+
+    // Resize if requested
+    if (width > 0) {
+      buffer = Buffer.from(await sharp(buffer)
+        .resize(width, width, { fit: 'inside', withoutEnlargement: true })
+        .toBuffer());
+    }
+
+    // Cache in Redis (fire-and-forget)
+    const value = JSON.stringify({ base64: buffer.toString('base64'), contentType });
+    redis.setex(cacheKey, IMAGE_CACHE_TTL, value).catch(() => {});
+
+    return { buffer, contentType };
   }
 
   return null;
@@ -133,6 +191,9 @@ export async function deleteImage(
   if (effectiveOrderDs && relatedId) {
     await syncDetailImageId(effectiveOrderDs, relatedId, null);
   }
+
+  // Invalidate Redis cache
+  redis.del(`${IMAGE_CACHE_PREFIX}${ds}:${imageId}`).catch(() => {});
 
   return { success: true };
 }
