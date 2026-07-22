@@ -55,9 +55,10 @@ function lineNoNumber(value: unknown, dateSuffix?: string): number | null {
   const match = text.match(/^(\d+)-(\d{2})(?:\/(\d{2})\/(\d{2}))?\b/);
   if (!match) return null;
   if (dateSuffix) {
-    const [year, month, day] = dateSuffix.split('/');
-    if (match[2] !== year) return null;
-    if (match[3] && match[4] && (match[3] !== month || match[4] !== day)) return null;
+    const parts = dateSuffix.split('/');
+    if (match[2] !== parts[0]) return null;
+    // Only enforce month/day match when the suffix includes them (year-only matching skips this)
+    if (parts.length >= 3 && match[3] && match[4] && (match[3] !== parts[1] || match[4] !== parts[2])) return null;
   }
   return Number(match[1]) || null;
 }
@@ -105,10 +106,10 @@ function withReceiptNoSet(specs: Record<string, unknown>): Record<string, unknow
 /**
  * Ensure every matched detail row has a 单号 (line number).
  *
- * Rules (unchanged from production):
- * - Format: N-YY/MM/DD
- * - Date source: orderDate from customerInfo, order.orderDate, or row['日期']
- * - N increments from the global maximum for the same date across all orders
+ * Rules:
+ * - Format: N-YY/MM/DD (e.g., 5-25/07/17)
+ * - Date suffix from: orderDate in customerInfo, order.orderDate, or row['日期']
+ * - N increments from the global maximum for the same year across all orders (yearly reset)
  * - Never overwrite an existing 单号
  * - Only scan/modify orders matched by the given refs (plus read-only global max scan)
  *
@@ -176,9 +177,10 @@ export async function ensureLineNumbers(
 
   if (orderWork.length === 0) return map;
 
-  // ── Scan all orders for max N per date (read-only) ──
-  const neededDates = [...new Set(orderWork.map(item => item.dateSuffix))];
-  const maxByDate: Record<string, number> = Object.fromEntries(neededDates.map(date => [date, 0]));
+  // ── Scan all orders for max N per year (read-only) ──
+  // N increments across the year, not resetting daily (dateSuffix format is still YY/MM/DD)
+  const neededYears = [...new Set(orderWork.map(item => item.dateSuffix.split('/')[0]))];
+  const maxByYear: Record<string, number> = Object.fromEntries(neededYears.map(y => [y, 0]));
 
   const allOrders = await prisma.order.findMany({
     where: { databaseName: ds },
@@ -187,16 +189,17 @@ export async function ensureLineNumbers(
   for (const o of allOrders) {
     const specs = parseJsonRecord(o.doorSpecs);
     for (const row of doorRowsFromSpecs(specs)) {
-      for (const date of neededDates) {
-        const number = lineNoNumber(row['单号'], date);
-        if (number !== null && number > maxByDate[date]) maxByDate[date] = number;
+      for (const year of neededYears) {
+        const number = lineNoNumber(row['单号'], year);
+        if (number !== null && number > maxByYear[year]) maxByYear[year] = number;
       }
     }
   }
 
   // ── Fill empty 单号 and save ──
   for (const { order, specs, dateSuffix, fillAll } of orderWork) {
-    let nextNumber = maxByDate[dateSuffix] || 0;
+    const yearKey = dateSuffix.split('/')[0];
+    let nextNumber = maxByYear[yearKey] || 0;
     let changed = false;
 
     for (const row of doorRowsFromSpecs(specs)) {
@@ -212,7 +215,7 @@ export async function ensureLineNumbers(
       map[id] = lineNo;
       changed = true;
     }
-    maxByDate[dateSuffix] = nextNumber;
+    maxByYear[yearKey] = nextNumber;
 
     if (changed) {
       const nextSpecs = withReceiptNoSet(updateDoorRows(specs, row => {
