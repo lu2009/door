@@ -96,7 +96,15 @@ bash scripts/deploy.sh
 `git pull` 只会更新代码，不会自动重启正在运行的容器。  
 `bash scripts/deploy.sh` 会自动完成重新构建、迁移、seed、启动服务和健康检查。
 
-### 6. 同步生产前端静态资源
+### 6. 下载前端 CDN 依赖到本地
+
+```bash
+cd frontend && bash download-cdn.sh
+```
+
+将 `index.html` 中引用的 unpkg/coze CDN 资源下载到 `frontend/vendor/`，并替换为本地路径，避免线上环境加载 CDN 慢的问题。
+
+### 7. 同步生产前端静态资源
 
 如果生产 `dist` 包文件名会变化，不要再猜 zip 名称。这个仓库现在直接从生产首页抓取已部署的前端资源：
 

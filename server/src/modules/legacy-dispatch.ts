@@ -40,6 +40,12 @@ const ACTION_MAP: Record<string, string> = {
   'getuserconfig': 'getuserconfig',
   'checkversionapp': 'checkversionapp',
   'getupdatainfo': 'getupdatainfo',
+  'gethotupdateurl': 'gethotupdateurl',
+  'syncnoticeboard': 'syncnoticeboard',
+  'aftersalescategories': 'aftersalescategories',
+  'aftersalesfeedback': 'aftersalesfeedback',
+  'aftersalesquestions': 'aftersalesquestions',
+  'aftersaleseevent': 'aftersaleseevent',
   'gettemplates': 'gettemplates',
   'saveimage': 'saveimage',
   'deleteimage': 'deleteimage',
@@ -155,6 +161,12 @@ const ACTION_MAP: Record<string, string> = {
   'getUserConfig': 'getuserconfig',
   'CheckVersionAPP': 'checkversionapp',
   'getUpdataInfo': 'getupdatainfo',
+  'getHotUpdateUrl': 'gethotupdateurl',
+  'syncNoticeBoard': 'syncnoticeboard',
+  'afterSalesCategories': 'aftersalescategories',
+  'afterSalesFeedback': 'aftersalesfeedback',
+  'afterSalesQuestions': 'aftersalesquestions',
+  'afterSalesEvent': 'aftersaleseevent',
   'getTemplates': 'gettemplates',
   'saveImage': 'saveimage',
   'deleteImage': 'deleteimage',
@@ -911,6 +923,12 @@ HANDLER_MAP['checkelectrondevicelicense'] = async () => ({
   // Settings
   const settingsServ = await import('./settings/settings.service');
   HANDLER_MAP['checkversionapp'] = async () => settingsServ.getVersionInfo();
+  HANDLER_MAP['gethotupdateurl'] = async () => settingsServ.getVersionInfo();
+  HANDLER_MAP['syncnoticeboard'] = async () => ({ code: 200, message: 'none' });
+  HANDLER_MAP['aftersalescategories'] = async () => ({ code: 200, data: [], message: 'ok' });
+  HANDLER_MAP['aftersalesfeedback'] = async () => ({ code: 200, message: 'ok' });
+  HANDLER_MAP['aftersalesquestions'] = async () => ({ code: 200, data: { items: [], total: 0 }, message: 'ok' });
+  HANDLER_MAP['aftersaleseevent'] = async () => ({ code: 200, message: 'ok' });
   HANDLER_MAP['getaddprice'] = (p) => settingsServ.getAddPrice(p.ds);
   HANDLER_MAP['addaddprice'] = async (p) => projectAddPrice(await settingsServ.addAddPrice(p.ds, p.body as Record<string, unknown>));
   HANDLER_MAP['editprice'] = (p) => {
